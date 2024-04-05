@@ -1,0 +1,54 @@
+cabal-version:       2.2
+name:                network-canopen
+version:             0.1.0.0
+synopsis:            CANOpen networking
+description:         CANOpen protocol implementation
+homepage:            https://github.com/DistRap/network-canopen
+license:             BSD-3-Clause
+license-file:        LICENSE
+author:              sorki
+maintainer:          srk@48.io
+copyright:           2024 sorki
+category:            Network
+build-type:          Simple
+
+extra-source-files:
+    LICENSE
+    README.md
+
+extra-doc-files:
+    CHANGELOG.md
+
+library
+  ghc-options:         -Wall
+  hs-source-dirs:      src
+  exposed-modules:     Network.CANOpen
+                       Network.CANOpen.Types
+                       Network.CANOpen.SDO
+                       Network.CANOpen.SDO.Types
+
+  build-depends:       base >= 4.7 && < 5
+                     , network-can
+                     , bytestring
+                     , containers
+                     , data-default-class
+
+  default-language:    Haskell2010
+
+test-suite pure
+  type:                exitcode-stdio-1.0
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  other-modules:       Samples
+                       SLCANSpec
+                       SocketCANSpec
+  build-tool-depends:  hspec-discover:hspec-discover
+  build-depends:       base >= 4.7 && < 5
+                     , hspec
+                     , network-can
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/DistRap/network-canopen
