@@ -23,15 +23,19 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Network.CANOpen
+                       Network.CANOpen.Serialize
                        Network.CANOpen.Types
+                       Network.CANOpen.LSS.Types
+                       Network.CANOpen.NMT.Types
                        Network.CANOpen.SDO
                        Network.CANOpen.SDO.Types
 
   build-depends:       base >= 4.7 && < 5
-                     , network-can
                      , bytestring
                      , containers
+                     , cereal
                      , data-default-class
+                     , network-can
 
   default-language:    Haskell2010
 
