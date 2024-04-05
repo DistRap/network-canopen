@@ -36,6 +36,7 @@ library
                      , cereal
                      , data-default-class
                      , network-can
+                     , stm
 
   default-language:    Haskell2010
 

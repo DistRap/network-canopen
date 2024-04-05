@@ -13,7 +13,7 @@ import qualified Network.CANOpen
 
 main :: IO ()
 main = do
-  runCANOpen $ do
+  runCANOpen <HOW> $ do
     io <- addNode 1
     forAllNodes waitBootup
     forAllNodes setOperational

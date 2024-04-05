@@ -1,3 +1,4 @@
+-- | Link Layer Services types
 module Network.CANOpen.LSS.Types
   ( lssTXID
   , lssRXID

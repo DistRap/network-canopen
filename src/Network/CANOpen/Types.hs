@@ -8,10 +8,15 @@ module Network.CANOpen.Types
   ) where
 
 import Data.Word (Word8, Word16)
+import Network.CANOpen.Serialize (CSerialize(..))
 
 newtype NodeID = NodeID
   { unNodeID :: Word8 }
   deriving (Eq, Ord, Show, Num)
+
+instance CSerialize NodeID where
+  put = put . unNodeID
+  get = NodeID <$> get
 
 -- * Dictionary
 
