@@ -35,8 +35,10 @@ library
                      , containers
                      , cereal
                      , data-default-class
+                     , mtl
                      , network-can
                      , stm
+                     , transformers
 
   default-language:    Haskell2010
 

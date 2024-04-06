@@ -3,12 +3,10 @@
 -- | Network Management types
 module Network.CANOpen.NMT.Types
   ( NMTState(..)
+  , NMTMessage(..)
   , NMTCommandSpecifier(..)
-  , nmtCommandSpecifierToWord8
-  , word8ToNMTCommandSpecifier
   , nodeHeartbeatID
   , nmtID
-  , NMTMessage(..)
   ) where
 
 import Data.Word (Word8)
@@ -62,11 +60,22 @@ instance CSerialize NMTCommandSpecifier where
       (fail "Invalid NMTCommandSpecifier")
       pure
 
+-- | CAN ID used for heartbeat and node guarding messages
 nodeHeartbeatID
   :: NodeID
   -> CANArbitrationField
 nodeHeartbeatID (NodeID i) = Network.CAN.standardID (0x700 + fromIntegral i)
 
+-- | Numeric state encoded in node guarding response
+nodeGuardingWord8ToNMTState
+  :: Word8
+  -> Maybe NMTState
+nodeGuardingWord8ToNMTState   4 = Just NMTState_Stopped
+nodeGuardingWord8ToNMTState   5 = Just NMTState_Operational
+nodeGuardingWord8ToNMTState 127 = Just NMTState_PreOperational
+nodeGuardingWord8ToNMTState   _ = Nothing
+
+-- | CAN ID used for NMT messages
 nmtID :: CANArbitrationField
 nmtID = Network.CAN.standardID 0x0
 
