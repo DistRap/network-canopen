@@ -2,7 +2,7 @@
 module Network.CANOpen.NMT.Types
   ( NMTState(..)
   , NMTMessage(..)
-  , NMTCommandSpecifier(..)
+  , NMTCommand(..)
   , nodeHeartbeatID
   , nodeGuardingWord8ToNMTState
   , nmtID
@@ -12,7 +12,10 @@ import Data.Word (Word8)
 import Network.CAN (CANArbitrationField)
 import Network.CANOpen.Types (NodeID(..))
 import Network.CANOpen.Serialize (CSerialize(..))
+import Test.QuickCheck.Arbitrary (Arbitrary(..))
+
 import qualified Network.CAN
+import qualified Test.QuickCheck
 
 data NMTState
   = NMTState_Initialising
@@ -23,41 +26,40 @@ data NMTState
   | NMTState_Stopped
   deriving (Eq, Ord, Show)
 
-data NMTCommandSpecifier
-  = NMTCommandSpecifier_Start
-  | NMTCommandSpecifier_Stop
-  | NMTCommandSpecifier_PreOperation
-  | NMTCommandSpecifier_ResetNode
-  | NMTCommandSpecifier_ResetComm
+data NMTCommand
+  = NMTCommand_Start
+  | NMTCommand_Stop
+  | NMTCommand_PreOperation
+  | NMTCommand_ResetNode
+  | NMTCommand_ResetComm
   deriving (Eq, Ord, Show)
 
-nmtCommandSpecifierToWord8
-  :: NMTCommandSpecifier
-  -> Word8
-nmtCommandSpecifierToWord8 NMTCommandSpecifier_Start        = 0x01
-nmtCommandSpecifierToWord8 NMTCommandSpecifier_Stop         = 0x02
-nmtCommandSpecifierToWord8 NMTCommandSpecifier_PreOperation = 0x80
-nmtCommandSpecifierToWord8 NMTCommandSpecifier_ResetNode    = 0x81
-nmtCommandSpecifierToWord8 NMTCommandSpecifier_ResetComm    = 0x82
+instance Arbitrary NMTCommand where
+  arbitrary =
+    Test.QuickCheck.oneof
+    $ pure
+    <$> [ NMTCommand_Start
+        , NMTCommand_Stop
+        , NMTCommand_PreOperation
+        , NMTCommand_ResetNode
+        , NMTCommand_ResetComm
+        ]
 
-word8ToNMTCommandSpecifier
-  :: Word8
-  -> Maybe NMTCommandSpecifier
-word8ToNMTCommandSpecifier 0x01 = Just NMTCommandSpecifier_Start
-word8ToNMTCommandSpecifier 0x02 = Just NMTCommandSpecifier_Stop
-word8ToNMTCommandSpecifier 0x80 = Just NMTCommandSpecifier_PreOperation
-word8ToNMTCommandSpecifier 0x81 = Just NMTCommandSpecifier_ResetNode
-word8ToNMTCommandSpecifier 0x82 = Just NMTCommandSpecifier_ResetComm
-word8ToNMTCommandSpecifier _    = Nothing
+instance CSerialize NMTCommand where
+  put = put @Word8 . \case
+    NMTCommand_Start        -> 0x01
+    NMTCommand_Stop         -> 0x02
+    NMTCommand_PreOperation -> 0x80
+    NMTCommand_ResetNode    -> 0x81
+    NMTCommand_ResetComm    -> 0x82
 
-instance CSerialize NMTCommandSpecifier where
-  put = put . nmtCommandSpecifierToWord8
-  get =
-    word8ToNMTCommandSpecifier <$> get
-    >>=
-    maybe
-      (fail "Invalid NMTCommandSpecifier")
-      pure
+  get = get @Word8 >>= \case
+    0x01 -> pure NMTCommand_Start
+    0x02 -> pure NMTCommand_Stop
+    0x80 -> pure NMTCommand_PreOperation
+    0x81 -> pure NMTCommand_ResetNode
+    0x82 -> pure NMTCommand_ResetComm
+    x    -> fail $ "Invalid NMTCommand:" <> show x
 
 -- | CAN ID used for heartbeat and node guarding messages
 nodeHeartbeatID
@@ -93,8 +95,11 @@ nmtID = Network.CAN.standardID 0x0
 -- cansend can0 000#8101
 data NMTMessage = NMTMessage
   { nmtMessageNodeID :: NodeID
-  , nmtMessageCommand :: NMTCommandSpecifier
+  , nmtMessageCommand :: NMTCommand
   } deriving (Eq, Ord, Show)
+
+instance Arbitrary NMTMessage where
+  arbitrary = NMTMessage <$> arbitrary <*> arbitrary
 
 instance CSerialize NMTMessage where
   put NMTMessage{..} = do

@@ -8,6 +8,8 @@ import Util (roundtrips)
 
 import Network.CANOpen.Serialize (CSerialize(..))
 import Network.CANOpen.Types (Mux)
+import Network.CANOpen.LSS.Types (LSSRequest, LSSReply)
+import Network.CANOpen.NMT.Types (NMTMessage)
 import Network.CANOpen.SDO.Types (SDORequest, SDOReply)
 
 -- | Test for roundtrip using @CSerialize@ instance
@@ -27,6 +29,11 @@ spec :: Spec
 spec = parallel $ do
   describe "Types" $ do
     prop "Mux" $ roundtripS @Mux
+  describe "LSS" $ do
+    prop "LSSRequest" $ roundtripS @LSSRequest
+    prop "LSSReply" $ roundtripS @LSSReply
+  describe "NMT" $ do
+    prop "NMTMessage" $ roundtripS @NMTMessage
   describe "SDO" $ do
     prop "SDORequest" $ roundtripS @SDORequest
     prop "SDOReply" $ roundtripS @SDOReply

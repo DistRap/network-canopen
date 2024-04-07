@@ -2,13 +2,14 @@
 
 module Network.CANOpen.Types
   ( NodeID(..)
+  , NodeIdentity(..)
   -- * Dictionary
   , Index(..)
   , SubIndex(..)
   , Mux(..)
   ) where
 
-import Data.Word (Word8, Word16)
+import Data.Word (Word8, Word16, Word32)
 import Network.CANOpen.Serialize (CSerialize(..))
 import Test.QuickCheck.Arbitrary (Arbitrary(..))
 import qualified Test.QuickCheck
@@ -23,6 +24,18 @@ instance Arbitrary NodeID where
 instance CSerialize NodeID where
   put = put . unNodeID
   get = NodeID <$> get
+
+data NodeIdentity =
+  NodeIdentity
+  { nodeIdentityVendor :: Word32
+  , nodeIdentityProduct :: Word32
+  , nodeIdentityRevision :: Word32
+  , nodeIdentitySerial :: Word32
+  } deriving (Eq, Ord, Show)
+
+instance Arbitrary NodeIdentity where
+  arbitrary =
+    NodeIdentity <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 -- * Dictionary
 
@@ -60,5 +73,3 @@ instance Arbitrary Mux where
 instance CSerialize Mux where
   put m = put (muxIndex m) >> put (muxSubIndex m)
   get = Mux <$> get <*> get
-
-
