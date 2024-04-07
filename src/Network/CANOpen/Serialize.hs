@@ -7,6 +7,7 @@ module Network.CANOpen.Serialize
     CSerialize(..)
   -- * Runners
   , runPut
+  , runGet
   -- * Utils
   , pad
   ) where
