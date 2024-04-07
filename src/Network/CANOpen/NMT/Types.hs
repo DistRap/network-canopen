@@ -63,7 +63,8 @@ instance CSerialize NMTCommandSpecifier where
 nodeHeartbeatID
   :: NodeID
   -> CANArbitrationField
-nodeHeartbeatID (NodeID i) = Network.CAN.standardID (0x700 + fromIntegral i)
+nodeHeartbeatID (NodeID i) =
+  Network.CAN.standardID (0x700 + fromIntegral i)
 
 -- | Numeric state encoded in node guarding response
 nodeGuardingWord8ToNMTState

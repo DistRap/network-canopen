@@ -2,7 +2,13 @@
 -- and instances
 
 module Network.CANOpen.Serialize
-  ( CSerialize(..)
+  (
+  -- * Class
+    CSerialize(..)
+  -- * Runners
+  , runPut
+  -- * Utils
+  , pad
   ) where
 
 import Data.Serialize.Get (Get)
@@ -10,13 +16,45 @@ import Data.Serialize.Put (Putter)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Data.Int (Int8, Int16, Int32, Int64)
 
+import qualified Data.ByteString
 import qualified Data.Serialize.Get
 import qualified Data.Serialize.IEEE754
 import qualified Data.Serialize.Put
 
+-- * Class
+
 class CSerialize a where
   put :: Putter a
   get :: Get a
+
+-- * Runners
+
+runPut
+  :: CSerialize a
+  => a
+  -> [Word8]
+runPut =
+    Data.ByteString.unpack
+  . Data.Serialize.Put.runPut
+  . put
+
+runGet
+  :: CSerialize a
+  => [Word8]
+  -> Either String a
+runGet =
+    Data.Serialize.Get.runGet get
+  . Data.ByteString.pack
+
+-- * Utils
+
+-- | Pad right side with zeroes
+pad
+  :: Num a
+  => Int
+  -> [a]
+  -> [a]
+pad n x = take n (x ++ cycle [0])
 
 -- * Bool as Word8
 
