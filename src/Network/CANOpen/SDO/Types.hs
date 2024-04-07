@@ -12,6 +12,9 @@ import Data.Bits.Lens (bitAt)
 import Data.Word (Word8, Word32)
 import Network.CANOpen.Serialize (CSerialize(..))
 import Network.CANOpen.Types (Mux)
+import Test.QuickCheck.Arbitrary (Arbitrary(..))
+
+import qualified Test.QuickCheck
 
 data SDOInit = SDOInit
   { sdoInitNumBytes :: Word8
@@ -20,11 +23,21 @@ data SDOInit = SDOInit
   , sdoInitSizeIndicated :: Bool
   } deriving (Eq, Ord, Show)
 
+instance Arbitrary SDOInit where
+  arbitrary = do
+    sdoInitNumBytes <- Test.QuickCheck.choose (0, 0b11)
+    SDOInit <$> pure sdoInitNumBytes <*> arbitrary <*> arbitrary
+
 data SDOSegment = SDOSegment
   { sdoSegmentToggle :: Bool
   , sdoSegmentNumBytes :: Word8
   , sdoSegmentContinued :: Bool
   } deriving (Eq, Ord, Show)
+
+instance Arbitrary SDOSegment where
+  arbitrary = do
+    sdoSegmentNumBytes <- Test.QuickCheck.choose (0, 0b111)
+    SDOSegment <$> arbitrary <*> pure sdoSegmentNumBytes <*> arbitrary
 
 data SDORequest =
     SDORequestUploadInit
@@ -39,6 +52,16 @@ data SDORequest =
       { sdoRequestDownloadSegmentHeader :: SDOSegment }
   | SDORequestAbort
   deriving (Eq, Ord, Show)
+
+instance Arbitrary SDORequest where
+  arbitrary =
+    Test.QuickCheck.oneof
+    [ SDORequestUploadInit <$> arbitrary
+    , SDORequestUploadSegment <$> arbitrary
+    , SDORequestDownloadInit <$> arbitrary <*> arbitrary
+    , SDORequestDownloadSegment <$> arbitrary
+    , pure SDORequestAbort
+    ]
 
 instance CSerialize SDORequest where
   put = \case
@@ -93,7 +116,7 @@ instance CSerialize SDORequest where
     b0 | sdoCCS b0 == Just SDOClientCommandSpecifier_DownloadSegment -> do
       let
         sdoSegmentContinued =  b0 ^. bitAt 0
-        sdoSegmentNumBytes = (b0 `shiftR` 3) .&. 0b111
+        sdoSegmentNumBytes = (b0 `shiftR` 1) .&. 0b111
         sdoSegmentToggle = b0 ^. bitAt 4
         sdoRequestDownloadSegmentHeader = SDOSegment{..}
       pure SDORequestDownloadSegment{..}
@@ -131,6 +154,16 @@ data SDOReply =
       { sdoReplyDownloadSegmentToggle :: Bool }
   | SDOReplyAbort
   deriving (Eq, Ord, Show)
+
+instance Arbitrary SDOReply where
+  arbitrary =
+    Test.QuickCheck.oneof
+    [ SDOReplyUploadInit <$> arbitrary <*> arbitrary
+    , SDOReplyUploadSegment <$> arbitrary
+    , SDOReplyDownloadInit <$> arbitrary
+    , SDOReplyDownloadSegment <$> arbitrary
+    , pure SDOReplyAbort
+    ]
 
 instance CSerialize SDOReply where
   put = \case
@@ -179,7 +212,7 @@ instance CSerialize SDOReply where
     b0 | sdoSCS b0 == Just SDOServerCommandSpecifier_UploadSegment -> do
       let
         sdoSegmentContinued =  b0 ^. bitAt 0
-        sdoSegmentNumBytes = (b0 `shiftR` 3) .&. 0b111
+        sdoSegmentNumBytes = (b0 `shiftR` 1) .&. 0b111
         sdoSegmentToggle = b0 ^. bitAt 4
         sdoReplyUploadSegmentHeader = SDOSegment{..}
       pure SDOReplyUploadSegment{..}
