@@ -59,12 +59,15 @@ test-suite pure
   main-is:             Spec.hs
   other-modules:       Util
                        SerializeSpec
+                       SDOSpec
   build-tool-depends:  hspec-discover:hspec-discover
   build-depends:       base >= 4.7 && < 5
                      , cereal
                      , hspec
+                     , mtl
                      , network-can
                      , network-canopen
+                     , transformers
   default-language:    Haskell2010
 
 source-repository head
