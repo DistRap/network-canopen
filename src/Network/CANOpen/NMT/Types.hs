@@ -1,11 +1,10 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- | Network Management types
 module Network.CANOpen.NMT.Types
   ( NMTState(..)
   , NMTMessage(..)
   , NMTCommandSpecifier(..)
   , nodeHeartbeatID
+  , nodeGuardingWord8ToNMTState
   , nmtID
   ) where
 

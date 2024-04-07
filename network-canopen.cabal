@@ -19,8 +19,15 @@ extra-source-files:
 extra-doc-files:
     CHANGELOG.md
 
-library
+common commons
   ghc-options:         -Wall
+  default-extensions:  BinaryLiterals
+                       LambdaCase
+                       RecordWildCards
+                       TypeApplications
+
+library
+  import:              commons
   hs-source-dirs:      src
   exposed-modules:     Network.CANOpen
                        Network.CANOpen.Serialize
@@ -35,6 +42,7 @@ library
                      , containers
                      , cereal
                      , data-default-class
+                     , lens
                      , mtl
                      , network-can
                      , stm

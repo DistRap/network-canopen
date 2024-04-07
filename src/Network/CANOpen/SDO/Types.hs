@@ -1,12 +1,214 @@
 module Network.CANOpen.SDO.Types
-  ( SDOClientCommandSpecifier
-  , SDOServerCommandSpecifier
+  ( SDORequest(..)
+  , SDOReply(..)
   , SDOError(..)
   , sdoErrorToWord32
   , word32ToSDOError
   ) where
 
-import Data.Word (Word32)
+import Control.Lens ((&), (.~), (^.))
+import Data.Bits ((.&.), (.|.), shiftL, shiftR)
+import Data.Bits.Lens (bitAt)
+import Data.Word (Word8, Word32)
+import Network.CANOpen.Serialize (CSerialize(..))
+import Network.CANOpen.Types (Mux)
+
+data SDOInit = SDOInit
+  { sdoInitNumBytes :: Word8
+  -- ^ Data size if size indicated (4 - sdoInitNumBytes) bytes
+  , sdoInitExpedited :: Bool
+  , sdoInitSizeIndicated :: Bool
+  } deriving (Eq, Ord, Show)
+
+data SDOSegment = SDOSegment
+  { sdoSegmentToggle :: Bool
+  , sdoSegmentNumBytes :: Word8
+  , sdoSegmentContinued :: Bool
+  } deriving (Eq, Ord, Show)
+
+data SDORequest =
+    SDORequestUploadInit
+      { sdoRequestUploadInitMux :: Mux }
+  | SDORequestUploadSegment
+      { sdoRequestUploadSegmentToggle :: Bool }
+  | SDORequestDownloadInit
+      { sdoRequestDownloadInitHeader :: SDOInit
+      , sdoRequestDownloadInitMux :: Mux
+      }
+  | SDORequestDownloadSegment
+      { sdoRequestDownloadSegmentHeader :: SDOSegment }
+  | SDORequestAbort
+  deriving (Eq, Ord, Show)
+
+instance CSerialize SDORequest where
+  put = \case
+    SDORequestUploadInit{..} -> do
+      put $ sdoCCS SDOClientCommandSpecifier_UploadInit
+      put sdoRequestUploadInitMux
+    SDORequestUploadSegment{..} -> do
+      put
+        $ sdoCCS SDOClientCommandSpecifier_UploadSegment
+          & bitAt 4 .~ sdoRequestUploadSegmentToggle
+    SDORequestDownloadInit{..} -> do
+      let SDOInit{..} = sdoRequestDownloadInitHeader
+      put
+        $ sdoCCS SDOClientCommandSpecifier_DownloadInit
+          & bitAt 0 .~ sdoInitSizeIndicated
+          & bitAt 1 .~ sdoInitExpedited
+          & (.|. ((sdoInitNumBytes .&. 0b11) `shiftL` 2))
+      put sdoRequestDownloadInitMux
+    SDORequestDownloadSegment{..} -> do
+      let SDOSegment{..} = sdoRequestDownloadSegmentHeader
+      put
+        $ sdoCCS SDOClientCommandSpecifier_DownloadSegment
+          & bitAt 0 .~ sdoSegmentContinued
+          & (.|. ((sdoSegmentNumBytes .&. 0b111) `shiftL` 1))
+          & bitAt 4 .~ sdoSegmentToggle
+    SDORequestAbort ->
+      put $ sdoCCS SDOClientCommandSpecifier_Abort
+    where
+    sdoCCS
+      :: SDOClientCommandSpecifier
+      -> Word8
+    sdoCCS =
+        (`Data.Bits.shiftL` 5)
+      . fromIntegral
+      . fromEnum
+
+  get = get @Word8 >>= \case
+    b0 | sdoCCS b0 == Just SDOClientCommandSpecifier_UploadInit -> do
+      sdoRequestUploadInitMux <- get
+      pure SDORequestUploadInit{..}
+    b0 | sdoCCS b0 == Just SDOClientCommandSpecifier_UploadSegment -> do
+      let sdoRequestUploadSegmentToggle = b0 ^. bitAt 4
+      pure SDORequestUploadSegment{..}
+    b0 | sdoCCS b0 == Just SDOClientCommandSpecifier_DownloadInit -> do
+      let
+        sdoInitSizeIndicated = b0 ^. bitAt 0
+        sdoInitExpedited = b0 ^. bitAt 1
+        sdoInitNumBytes = (b0 `shiftR` 2) .&. 0b11
+        sdoRequestDownloadInitHeader = SDOInit{..}
+      sdoRequestDownloadInitMux <- get
+      pure SDORequestDownloadInit{..}
+    b0 | sdoCCS b0 == Just SDOClientCommandSpecifier_DownloadSegment -> do
+      let
+        sdoSegmentContinued =  b0 ^. bitAt 0
+        sdoSegmentNumBytes = (b0 `shiftR` 3) .&. 0b111
+        sdoSegmentToggle = b0 ^. bitAt 4
+        sdoRequestDownloadSegmentHeader = SDOSegment{..}
+      pure SDORequestDownloadSegment{..}
+    b0 | sdoCCS b0 == Just SDOClientCommandSpecifier_Abort -> do
+      pure SDORequestAbort
+    b0 | otherwise ->
+      fail $    "Invalid client command specifier for SDORequest"
+             <> ", byte 0: "
+             <> show b0
+             <> ", ccs: "
+             <> show (b0 `shiftR` 5)
+    where
+    sdoCCS
+      :: Word8
+      -> Maybe SDOClientCommandSpecifier
+    sdoCCS =
+        (\x ->
+          if x <= fromEnum (maxBound @SDOClientCommandSpecifier)
+          then pure $ toEnum x
+          else Nothing
+        )
+      . fromIntegral
+      . (`Data.Bits.shiftR` 5)
+
+data SDOReply =
+    SDOReplyUploadInit
+      { sdoReplyUploadInitHeader :: SDOInit
+      , sdoReplyUploadInitMux :: Mux
+      }
+  | SDOReplyUploadSegment
+      { sdoReplyUploadSegmentHeader :: SDOSegment }
+  | SDOReplyDownloadInit
+      { sdoReplyDownloadInitMux :: Mux }
+  | SDOReplyDownloadSegment
+      { sdoReplyDownloadSegmentToggle :: Bool }
+  | SDOReplyAbort
+  deriving (Eq, Ord, Show)
+
+instance CSerialize SDOReply where
+  put = \case
+    SDOReplyUploadInit{..} -> do
+      let SDOInit{..} = sdoReplyUploadInitHeader
+      put
+        $ sdoSCS SDOServerCommandSpecifier_UploadInit
+          & bitAt 0 .~ sdoInitSizeIndicated
+          & bitAt 1 .~ sdoInitExpedited
+          & (.|. ((sdoInitNumBytes .&. 0b11) `shiftL` 2))
+      put sdoReplyUploadInitMux
+    SDOReplyUploadSegment{..} -> do
+      let SDOSegment{..} = sdoReplyUploadSegmentHeader
+      put
+        $ sdoSCS SDOServerCommandSpecifier_UploadSegment
+          & bitAt 0 .~ sdoSegmentContinued
+          & (.|. ((sdoSegmentNumBytes .&. 0b111) `shiftL` 1))
+          & bitAt 4 .~ sdoSegmentToggle
+    SDOReplyDownloadInit{..} -> do
+      put $ sdoSCS SDOServerCommandSpecifier_DownloadInit
+      put sdoReplyDownloadInitMux
+    SDOReplyDownloadSegment{..} -> do
+      put
+        $ sdoSCS SDOServerCommandSpecifier_DownloadSegment
+          & bitAt 4 .~ sdoReplyDownloadSegmentToggle
+    SDOReplyAbort ->
+      put $ sdoSCS SDOServerCommandSpecifier_Abort
+    where
+    sdoSCS
+      :: SDOServerCommandSpecifier
+      -> Word8
+    sdoSCS =
+        (`Data.Bits.shiftL` 5)
+      . fromIntegral
+      . fromEnum
+
+  get = get @Word8 >>= \case
+    b0 | sdoSCS b0 == Just SDOServerCommandSpecifier_UploadInit -> do
+      let
+        sdoInitSizeIndicated = b0 ^. bitAt 0
+        sdoInitExpedited = b0 ^. bitAt 1
+        sdoInitNumBytes = (b0 `shiftR` 2) .&. 0b11
+        sdoReplyUploadInitHeader = SDOInit{..}
+      sdoReplyUploadInitMux <- get
+      pure SDOReplyUploadInit{..}
+    b0 | sdoSCS b0 == Just SDOServerCommandSpecifier_UploadSegment -> do
+      let
+        sdoSegmentContinued =  b0 ^. bitAt 0
+        sdoSegmentNumBytes = (b0 `shiftR` 3) .&. 0b111
+        sdoSegmentToggle = b0 ^. bitAt 4
+        sdoReplyUploadSegmentHeader = SDOSegment{..}
+      pure SDOReplyUploadSegment{..}
+    b0 | sdoSCS b0 == Just SDOServerCommandSpecifier_DownloadInit -> do
+      sdoReplyDownloadInitMux <- get
+      pure SDOReplyDownloadInit{..}
+    b0 | sdoSCS b0 == Just SDOServerCommandSpecifier_DownloadSegment -> do
+      let sdoReplyDownloadSegmentToggle = b0 ^. bitAt 4
+      pure SDOReplyDownloadSegment{..}
+    b0 | sdoSCS b0 == Just SDOServerCommandSpecifier_Abort -> do
+      pure SDOReplyAbort
+    b0 | otherwise ->
+      fail $    "Invalid server command specifier for SDOReply"
+             <> ", byte 0: "
+             <> show b0
+             <> ", ccs: "
+             <> show (b0 `shiftR` 5)
+    where
+    sdoSCS
+      :: Word8
+      -> Maybe SDOServerCommandSpecifier
+    sdoSCS =
+        (\x ->
+          if x <= fromEnum (maxBound @SDOServerCommandSpecifier)
+          then pure $ toEnum x
+          else Nothing
+        )
+      . fromIntegral
+      . (`Data.Bits.shiftR` 5)
 
 data SDOClientCommandSpecifier
   = SDOClientCommandSpecifier_DownloadSegment
