@@ -9,6 +9,7 @@ import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Map (Map)
 import Network.CAN (CANArbitrationField, CANMessage)
+import Network.CAN.Class
 import Network.CANOpen.Types (NodeID)
 import Network.CANOpen.NMT.Types (NMTState(..))
 
@@ -39,7 +40,8 @@ newCANOpenState = do
     , canOpenStateHandlers = handlers
     }
 
-data CANOpenError
+data CANOpenError = CANOpenError_Whatever
+  deriving Show
 
 newtype CANOpenT m a = CANOpenT
   { _unCANOpenT
@@ -50,10 +52,11 @@ newtype CANOpenT m a = CANOpenT
     ( Functor
     , Applicative
     , Monad
+    , MonadCAN
     , MonadReader CANOpenState
     , MonadError CANOpenError
     , MonadIO
-     )
+    )
 
 instance MonadTrans CANOpenT where
   lift = CANOpenT . lift . lift

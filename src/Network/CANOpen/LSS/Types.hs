@@ -9,13 +9,10 @@ module Network.CANOpen.LSS.Types
   ) where
 
 import Data.Word (Word8, Word16, Word32)
-import Data.Kind (Type)
-import Network.CAN (CANArbitrationField, CANMessage)
 import Network.CANOpen.Types (NodeID)
 import Network.CANOpen.Serialize (CSerialize(..))
 import Test.QuickCheck.Arbitrary (Arbitrary(..))
 
-import qualified Network.CAN
 import qualified Test.QuickCheck
 
 data LSSMode
@@ -258,7 +255,7 @@ instance CSerialize LSSReply where
   put = \case
     LSSReply_ConfigNodeID x        -> put @Word8 0x11 >> put x
     LSSReply_ConfigBitTiming x     -> put @Word8 0x13 >> put x
-    LSSReply_StoreConfig x         -> put @Word8 0x15 >> put x
+    LSSReply_StoreConfig x         -> put @Word8 0x17 >> put x
     LSSReply_SwitchModeSelective   -> put @Word8 0x44
     LSSReply_Identify              -> put @Word8 0x4F
     LSSReply_IdentifyNonConfigured -> put @Word8 0x50
@@ -271,7 +268,7 @@ instance CSerialize LSSReply where
   get = get @Word8 >>= \case
     0x11 -> LSSReply_ConfigNodeID <$> get
     0x13 -> LSSReply_ConfigBitTiming <$> get
-    0x15 -> LSSReply_StoreConfig <$> get
+    0x17 -> LSSReply_StoreConfig <$> get
     0x44 -> pure LSSReply_SwitchModeSelective
     0x4F -> pure LSSReply_Identify
     0x50 -> pure LSSReply_IdentifyNonConfigured
