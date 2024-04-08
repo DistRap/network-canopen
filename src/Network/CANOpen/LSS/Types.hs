@@ -1,26 +1,22 @@
 -- | Link Layer Services types
 module Network.CANOpen.LSS.Types
-  ( lssTXID
-  , lssRXID
-  , LSSMode(..)
+  ( LSSMode(..)
   , LSSRequest(..)
   , LSSReply(..)
+  , LSSConfigNodeIDStatus(..)
+  , LSSConfigBitTimingStatus(..)
+  , LSSStoreConfigStatus(..)
   ) where
 
 import Data.Word (Word8, Word16, Word32)
-import Network.CAN (CANArbitrationField)
+import Data.Kind (Type)
+import Network.CAN (CANArbitrationField, CANMessage)
 import Network.CANOpen.Types (NodeID)
 import Network.CANOpen.Serialize (CSerialize(..))
 import Test.QuickCheck.Arbitrary (Arbitrary(..))
 
 import qualified Network.CAN
 import qualified Test.QuickCheck
-
-lssTXID :: CANArbitrationField
-lssTXID = Network.CAN.standardID 0x7E5
-
-lssRXID :: CANArbitrationField
-lssRXID = Network.CAN.standardID 0x7E4
 
 data LSSMode
   = LSSMode_Operation
@@ -43,42 +39,6 @@ instance CSerialize LSSMode where
     0 -> pure $ LSSMode_Operation
     1 -> pure $ LSSMode_Configuration
     x -> fail $ "Invalid LSS switch mode argument" <> show x
-
--- TODO higher level api
--- maybe a class like hocd or GADTs
-{--
- -
-import Network.CANOpen.Types (NodeID, NodeIdentity)
-data LSS =
-  LSS_Switch LSSSwitchMode
-  LSS_Identify LSSIdentify
-  ...
-
-data LSSSwitchMode
-  = LSSSwitchMode_Global LSSMode
-  -- ^ | Switch all devices
-  | LSSSwitchMode_Selective NodeIdentity
-  -- ^ | Switch specific device
-  deriving (Eq, Ord, Show)
-
-instance Arbitrary LSSSwitchMode where
-  arbitrary =
-    Test.QuickCheck.oneof
-    [ LSSSwitchMode_Global <$> arbitrary
-    , LSSSwitchMode_Selective <$> arbitrary
-    ]
-
-data LSSIdentify = LSSIdentify
-  { lssIdentifyVendor :: Word32
-  , lssIdentifyProduct :: Word32
-  , lssIdentifyRevision :: (Word32, Word32) -- ^ (low, high)
-  , lssIdentifySerial :: (Word32, Word32) -- ^ (low, high)
-  } deriving (Eq, Ord, Show)
-
-instance Arbitrary LSSIdentify where
-  arbitrary =
-    LSSIdentify <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
---}
 
 data LSSRequest
   = LSSRequest_SwitchGlobal LSSMode
@@ -321,3 +281,41 @@ instance CSerialize LSSReply where
     0x5D -> LSSReply_InquireSerial <$> get
     0x5E -> LSSReply_InquireNodeID <$> get
     x    -> fail $ "Invalid LSSReply command specifier: " <> show x
+
+-- TODO higher level api
+-- maybe a class like hocd or GADTs
+{--
+ -
+import Network.CANOpen.Types (NodeID, NodeIdentity)
+data LSS =
+  LSS_Switch LSSSwitchMode
+  LSS_Identify LSSIdentify
+  ...
+
+data LSSSwitchMode
+  = LSSSwitchMode_Global LSSMode
+  -- ^ | Switch all devices
+  | LSSSwitchMode_Selective NodeIdentity
+  -- ^ | Switch specific device
+  deriving (Eq, Ord, Show)
+
+instance Arbitrary LSSSwitchMode where
+  arbitrary =
+    Test.QuickCheck.oneof
+    [ LSSSwitchMode_Global <$> arbitrary
+    , LSSSwitchMode_Selective <$> arbitrary
+    ]
+
+data LSSIdentify = LSSIdentify
+  { lssIdentifyVendor :: Word32
+  , lssIdentifyProduct :: Word32
+  , lssIdentifyRevision :: (Word32, Word32) -- ^ (low, high)
+  , lssIdentifySerial :: (Word32, Word32) -- ^ (low, high)
+  } deriving (Eq, Ord, Show)
+
+instance Arbitrary LSSIdentify where
+  arbitrary =
+    LSSIdentify <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+--}
+
+

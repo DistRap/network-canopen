@@ -26,23 +26,18 @@ data Node = Node
 data CANOpenState = CANOpenState
   { canOpenStateNodes :: TVar (Map NodeID Node)
   , canOpenStateHandlers :: TVar (Map CANArbitrationField (CANMessage -> IO ()))
-  , canOpenStateInbound :: TQueue CANMessage
-  , canOpenStateOutbound :: TQueue CANMessage
   }
 
-{--
 newCANOpenState
-  :: TQueue CANMessage -- ^ In
-  -> TQueue CANMessage -- ^ Out
-  -> CANOpenState
-newCANOpenState inQ outQ =
-  CANOpenState
-  { canOpenStateNodes = mempty
-  , canOpenStateHandlers = mempty
-  , canOpenStateInbound = inQ
-  , canOpenStateOutbound = outQ
-  }
---}
+  :: IO CANOpenState
+newCANOpenState = do
+  nodes <- newTVarIO mempty
+  handlers <- newTVarIO mempty
+  pure
+    CANOpenState
+    { canOpenStateNodes = nodes
+    , canOpenStateHandlers = handlers
+    }
 
 data CANOpenError
 

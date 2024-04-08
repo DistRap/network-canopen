@@ -23,8 +23,11 @@ common commons
   ghc-options:         -Wall
   default-extensions:  BinaryLiterals
                        LambdaCase
+                       Rank2Types
                        RecordWildCards
+                       ScopedTypeVariables
                        TypeApplications
+                       TypeFamilies
 
 library
   import:              commons
@@ -32,6 +35,7 @@ library
   exposed-modules:     Network.CANOpen
                        Network.CANOpen.Serialize
                        Network.CANOpen.Types
+                       Network.CANOpen.LSS
                        Network.CANOpen.LSS.Types
                        Network.CANOpen.NMT.Types
                        Network.CANOpen.SDO
