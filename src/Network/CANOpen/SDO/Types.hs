@@ -1,5 +1,6 @@
 module Network.CANOpen.SDO.Types
-  ( SDORequest(..)
+  ( SDOInit(..)
+  , SDORequest(..)
   , SDOReply(..)
   , SDOError(..)
   , sdoErrorToWord32

@@ -12,11 +12,13 @@ module Network.CANOpen.Serialize
   , pad
   ) where
 
+import Data.Bits (FiniteBits)
 import Data.Serialize.Get (Get)
 import Data.Serialize.Put (Putter)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Data.Int (Int8, Int16, Int32, Int64)
 
+import qualified Data.Bits
 import qualified Data.ByteString
 import qualified Data.Serialize.Get
 import qualified Data.Serialize.IEEE754
