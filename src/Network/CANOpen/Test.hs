@@ -1,4 +1,4 @@
-
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Network.CANOpen.Test where
 
 import Control.Concurrent
@@ -20,8 +20,37 @@ import Network.SocketCAN
 
 import qualified System.IO
 
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TMVar
+import Control.Monad.Reader
+import Control.Monad.Trans.Reader (ReaderT)
+import qualified Data.Map
+import qualified UnliftIO.Async
+
 nID :: NodeID
 nID = NodeID 1
+
+newtype TBus m a = TBus { unTBus :: ReaderT (TMVar CANMessage) m a }
+  deriving ( Applicative
+           , Functor
+           , Monad
+           , MonadIO
+           , MonadReader (TMVar CANMessage)
+           , MonadTrans
+           )
+
+instance (MonadIO m, MonadCAN m) => MonadCAN (TBus m) where
+  send = lift . send
+  recv = ask >>= liftIO . atomically . takeTMVar
+
+runTBus
+  :: Monad m
+  => TMVar CANMessage
+  -> TBus m a
+  -> m a
+runTBus s =
+  (`runReaderT` s)
+  . unTBus
 
 main :: IO ()
 main = do
@@ -32,6 +61,8 @@ main = do
     doLSS = True -- False
 
   cs <- newCANOpenState
+
+  tb <- newEmptyTMVarIO
 
   --System.IO.withFile "/tmp/ttyV0" System.IO.ReadWriteMode $ \h -> Network.SLCAN.runSLCAN h def $ do
   runSocketCAN "vcan0" $ do
@@ -49,17 +80,34 @@ main = do
         storeConfig >>= l
       --recv >>= l
 
-      -- read vendor id
-      sdoClientUpload @Word32 nID (Mux 0x1018 1)
+      UnliftIO.Async.async $ do
+        runTBus tb $ do
+          -- read vendor id
+          sdoClientUpload @Word32 nID (Mux 0x1018 1)
 
-      -- at 0x606C $ field "velocity_actual" sint32 & ro
-      sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
-      -- at 0x60FF $ field "target_velocity" sint32
-      sdoClientDownload @Int32 nID (Mux 0x60FF 0) (123242)
+          -- at 0x606C $ field "velocity_actual" sint32 & ro
+          sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
+          -- at 0x60FF $ field "target_velocity" sint32
+          sdoClientDownload @Int32 nID (Mux 0x60FF 0) (123242)
 
-      forever $
-        sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
-      --  sdoClientUpload @Word32 nID (Mux 0x606C 0)
+          forever $
+            sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
+
+      registerHandler
+        (sdoReplyID nID)
+        (atomically . writeTMVar tb)
+
+      forever $ do
+        msg@CANMessage{..} <- recv
+        handlers <- asks canOpenStateHandlers >>= liftIO . readTVarIO
+        forM_
+          (Data.Map.toList handlers)
+          (\(arb, handler) ->
+            when
+              (arb == canMessageArbitrationField)
+              $ liftIO
+              $ handler msg
+          )
 
       pure ()
   >>= print

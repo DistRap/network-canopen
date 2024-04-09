@@ -1,23 +1,31 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Network.CANOpen where
 
+import Control.Monad ((<=<))
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad.Trans (MonadTrans, lift)
-import Control.Monad.Trans.Except (ExceptT, runExceptT)
+import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Map (Map)
 import Network.CAN (CANArbitrationField, CANMessage)
 import Network.CAN.Class
 import Network.CANOpen.Types (NodeID)
 import Network.CANOpen.NMT.Types (NMTState(..))
+import UnliftIO (Exception, MonadUnliftIO)
 
 --import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM -- (TVar, TQueue)
 
 import qualified Data.Map
 import qualified Network.CANOpen.NMT.Types
+import qualified UnliftIO
+
+instance (MonadUnliftIO m, Exception e) => MonadUnliftIO (ExceptT e m) where
+    withRunInIO exceptToIO = ExceptT $ UnliftIO.try $ do
+        UnliftIO.withRunInIO $ \runInIO ->
+            exceptToIO (runInIO . (either UnliftIO.throwIO pure <=< runExceptT))
 
 data Node = Node
   { nodeNMTState :: TVar NMTState
@@ -43,6 +51,8 @@ newCANOpenState = do
 data CANOpenError = CANOpenError_Whatever
   deriving Show
 
+instance Exception CANOpenError
+
 newtype CANOpenT m a = CANOpenT
   { _unCANOpenT
       :: ExceptT CANOpenError
@@ -56,6 +66,7 @@ newtype CANOpenT m a = CANOpenT
     , MonadReader CANOpenState
     , MonadError CANOpenError
     , MonadIO
+    , MonadUnliftIO
     )
 
 instance MonadTrans CANOpenT where
