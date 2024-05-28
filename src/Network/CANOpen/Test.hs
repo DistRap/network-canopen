@@ -20,6 +20,7 @@ import Network.SocketCAN
 
 import qualified System.IO
 
+import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TMVar
 import Control.Monad.Reader
@@ -58,11 +59,24 @@ main = do
     l :: (MonadIO m, Show a) => a -> m ()
     l = liftIO . print
 
-    doLSS = True -- False
+    doLSS = not True -- False
 
   cs <- newCANOpenState
 
   tb <- newEmptyTMVarIO
+  tcmd :: TMVar (TBus (CANOpenT (Network.SocketCAN.SocketCANT IO)) a) <- newEmptyTMVarIO
+
+  UnliftIO.Async.async $ do
+   forever $ do
+     atomically
+       $ writeTMVar
+           tcmd
+           $ sdoClientUpload @Int32 nID (Mux 0x606C 0) -- undefined :: _
+
+     atomically
+       $ writeTMVar
+           tcmd
+           $ sdoClientUpload @Word32 nID (Mux 0x606C 0) -- undefined :: _
 
   --System.IO.withFile "/tmp/ttyV0" System.IO.ReadWriteMode $ \h -> Network.SLCAN.runSLCAN h def $ do
   runSocketCAN "vcan0" $ do
@@ -90,8 +104,10 @@ main = do
           -- at 0x60FF $ field "target_velocity" sint32
           sdoClientDownload @Int32 nID (Mux 0x60FF 0) (123242)
 
-          forever $
-            sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
+          forever $ do
+            cmd <- liftIO . atomically . takeTMVar $ tcmd
+            cmd >>= l
+            --sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
 
       registerHandler
         (sdoReplyID nID)

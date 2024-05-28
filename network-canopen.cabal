@@ -58,6 +58,15 @@ library
 
   default-language:    Haskell2010
 
+executable hcanopen-test
+  build-depends:       base >=4.7 && <5
+                     , network-canopen
+
+  default-language:    Haskell2010
+  main-is:             Test.hs
+  hs-source-dirs:      app
+  ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts -N"
+
 test-suite pure
   import:              commons
   type:                exitcode-stdio-1.0
