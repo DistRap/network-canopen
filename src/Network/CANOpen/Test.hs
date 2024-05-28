@@ -73,11 +73,6 @@ main = do
            tcmd
            $ sdoClientUpload @Int32 nID (Mux 0x606C 0) -- undefined :: _
 
-     atomically
-       $ writeTMVar
-           tcmd
-           $ sdoClientUpload @Word32 nID (Mux 0x606C 0) -- undefined :: _
-
   --System.IO.withFile "/tmp/ttyV0" System.IO.ReadWriteMode $ \h -> Network.SLCAN.runSLCAN h def $ do
   runSocketCAN "vcan0" $ do
     runCANOpenT cs $ do
