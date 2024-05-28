@@ -1,0 +1,52 @@
+# WHAT TO DO WITH DIS
+
+maybe we should have
++ network-socketcan
++ network-slcan
++ network-can
+instead, when we figure out a better common interface
+cause primitive send/recv is not enuf, threads/callbacks are needed
+> can_rx_register
+> https://elixir.bootlin.com/linux/latest/source/net/can/af_can.c#L410
+
+# socat bridge
+# as root
+socat -d -d pty,link=/dev/ttyS0,raw,echo=0 pty,link=/dev/ttyS1,raw,echo=0
+# dump what's coming from slcan driver
+cat /dev/ttyS1 | xxd -c1 -g1
+
+# new slcan init
+slcan_attach /dev/ttyS0
+slcand ttyS0 can0
+ip link set dev can0 type can bitrate 500000
+ip link set dev can0 up
+
+
+# priv flags
+ethtool  --show-priv-flags can0
+ethtool --set-priv-flags can0 err-rst-on-open on
+# sends 'F' which means reset errors
+
+
+# sysfs
+/proc/net/can/
+
+# DOcs
+## SocketCAN docs
+https://www.kernel.org/doc/html/latest/networking/can.html
+## SLCAN docs
+http://www.can232.com/docs/can232_v3.pdf
+
+# TODO
+** test
+unshare -rn
+$ echo $$
+2471015
+ip link add netns 2471015 dev vcan0 type vcan
+
+# vcan
+sudo modprobe vcan
+sudo ip link add dev vcan0 type vcan
+sudo ip link set up vcan0
+candump vcan0
+cangen vcan0
