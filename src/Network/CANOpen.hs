@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- due to MonadUnliftIO (ExceptT e m) instance
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.CANOpen where
 
 import Control.Monad ((<=<))

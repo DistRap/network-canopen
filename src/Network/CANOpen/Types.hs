@@ -7,6 +7,10 @@ module Network.CANOpen.Types
   , Index(..)
   , SubIndex(..)
   , Mux(..)
+  -- ** Permission
+  , Permission(..)
+  -- ** Variable
+  , Variable(..)
   ) where
 
 import Data.Word (Word8, Word16, Word32)
@@ -39,6 +43,7 @@ instance Arbitrary NodeIdentity where
 
 -- * Dictionary
 
+-- | Dictionary index
 newtype Index = Index
   { unIndex :: Word16 }
   deriving (Eq, Ord, Show, Num)
@@ -50,6 +55,7 @@ instance CSerialize Index where
   put = put . unIndex
   get = Index <$> get
 
+-- | Dictionary sub-index
 newtype SubIndex = SubIndex
   { unSubIndex :: Word8 }
   deriving (Eq, Ord, Show, Num)
@@ -61,6 +67,7 @@ instance CSerialize SubIndex where
 instance Arbitrary SubIndex where
   arbitrary = SubIndex <$> arbitrary
 
+-- | Full object dictionary address
 data Mux =
   Mux
   { muxIndex :: Index
@@ -73,3 +80,25 @@ instance Arbitrary Mux where
 instance CSerialize Mux where
   put m = put (muxIndex m) >> put (muxSubIndex m)
   get = Mux <$> get <*> get
+
+-- | Variable access permissions
+data Permission
+  = Permission_Read
+  | Permission_Write
+  | Permission_ReadWrite
+  | Permission_Const
+  | Permission_Reserved
+  deriving (Eq, Ord, Show)
+
+-- | CANOpen variable
+--
+-- Phantom type carries its type,
+-- while data type has fields for
+-- its address (@Mux@), name..
+data Variable a =
+  Variable
+    { variableName :: String
+    , variableMux :: Mux
+    , variablePerm :: Permission
+    }
+  deriving (Eq, Ord, Show)

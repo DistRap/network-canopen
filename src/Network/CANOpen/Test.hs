@@ -2,10 +2,10 @@
 module Network.CANOpen.Test where
 
 import Control.Concurrent
-import Control.Monad
-import Control.Monad.IO.Class (MonadIO(liftIO))
+--import Control.Monad
+--import Control.Monad.IO.Class (MonadIO(liftIO))
 
-import Data.Default.Class
+--import Data.Default.Class
 import Data.Word (Word8, Word32)
 import Data.Int (Int32)
 
@@ -56,23 +56,11 @@ runTBus s =
   (`runReaderT` s)
   . unTBus
 
--- CANOpen variable
---
--- Phantom type carries its type,
--- while data type has fields for
--- its address (@Mux@), name..
-data Variable a =
-  Variable
-    { variableName :: String
-    , variableMux :: Mux
-    }
-  deriving (Eq, Ord, Show)
-    -- , variableAccess
-
 vendorID :: Variable Word32
 vendorID = Variable
   { variableName = "VendorID"
   , variableMux = Mux 0x1018 1
+  , variablePerm = Permission_Read
   }
 
 -- cia401 outputs
@@ -80,6 +68,7 @@ ioOutput :: Variable Word8
 ioOutput = Variable
   { variableName = "ioOutput"
   , variableMux = Mux 0x6200 1
+  , variablePerm = Permission_ReadWrite
   }
 
 -- posix test vars
@@ -87,14 +76,14 @@ velocityActual :: Variable Int32
 velocityActual = Variable
   { variableName = "velocityActual"
   , variableMux = Mux 0x606C 0
-  -- variableAccess = RO
+  , variablePerm = Permission_Read
   }
 
 targetVelocity :: Variable Int32
 targetVelocity = Variable
   { variableName = "targetVelocity"
   , variableMux = Mux 0x60FF 0
-  -- variableAccess = RW
+  , variablePerm = Permission_ReadWrite
   }
 
 data SDOClient = SDOClient

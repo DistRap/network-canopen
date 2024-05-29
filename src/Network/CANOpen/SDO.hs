@@ -2,9 +2,7 @@ module Network.CANOpen.SDO where
 
 import Data.Word (Word8)
 import Network.CAN (MonadCAN(..), CANArbitrationField, CANMessage(..))
---import Network.CANOpen.Serialize (CSerialize(..))
 import Network.CANOpen.SDO.Types (SDOInit(..), SDORequest(..), SDOReply(..))
-import Network.CANOpen.Serialize (CSerialize(..))
 import Network.CANOpen.Types (NodeID(..), Mux(..))
 
 import qualified Control.Monad
