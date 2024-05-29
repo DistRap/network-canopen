@@ -1,5 +1,6 @@
 module Network.CANOpen.SDO where
 
+import Data.Word (Word8)
 import Network.CAN (MonadCAN(..), CANArbitrationField, CANMessage(..))
 --import Network.CANOpen.Serialize (CSerialize(..))
 import Network.CANOpen.SDO.Types (SDOInit(..), SDORequest(..), SDOReply(..))
@@ -10,14 +11,22 @@ import qualified Control.Monad
 import qualified Network.CAN
 import qualified Network.CANOpen.Serialize
 
+data SDOClientCommand
+  = SDOClientCommand_Upload NodeID Mux
+  | SDOClientCommand_Download NodeID Mux [Word8]
+  deriving (Eq, Show)
+
+data SDOClientReply
+  = SDOClientReply_Upload [Word8]
+  | SDOClientReply_Download
+  deriving (Eq, Show)
+
 -- aka read (upload) from device
 sdoClientUpload
-  :: ( CSerialize a
-     , MonadCAN m
-     )
+  :: MonadCAN m
   => NodeID
   -> Mux
-  -> m a
+  -> m [Word8]
 sdoClientUpload nID mux = do
   let
     sendReq = send . sdoRequest nID
@@ -38,8 +47,6 @@ sdoClientUpload nID mux = do
             True -> do
               let dataLength = 4 - (fromIntegral sdoInitNumBytes)
               pure
-                $ either (error "DesFail") id
-                $ Network.CANOpen.Serialize.runGet
                 $ take dataLength
                 $ drop 4 canMessageData
 
@@ -49,31 +56,27 @@ sdoClientUpload nID mux = do
 
 -- aka write (download) to device
 sdoClientDownload
-  :: ( CSerialize a
-     , MonadCAN m
-     )
+  :: MonadCAN m
   => NodeID
   -> Mux
-  -> a
+  -> [Word8]
   -> m ()
-sdoClientDownload nID mux val = do
+sdoClientDownload nID mux bytes = do
   let
-    packedVal = Network.CANOpen.Serialize.runPut val
     header =
       SDOInit
-      { sdoInitNumBytes = 4 - (fromIntegral $ length packedVal)
+      { sdoInitNumBytes = 4 - (fromIntegral $ length bytes)
       , sdoInitExpedited = True
       , sdoInitSizeIndicated = True
       }
 
   send
-    -- $ (\x -> x { canMessageData = canMessageData x ++ packedVal})
     $ CANMessage
         (sdoRequestID nID)
         $ (Network.CANOpen.Serialize.runPut
             $ SDORequestDownloadInit header mux
           )
-          ++ packedVal
+          ++ bytes
 
   sdoReply nID <$> recv
   >>= \case
