@@ -86,7 +86,7 @@ runCANOpenT s =
   . runExceptT
   . _unCANOpenT
 
--- | Run CANOpenT transformer
+-- | Run CANOpen application
 runCANOpen
   :: ( MonadCAN m
      , MonadIO m
