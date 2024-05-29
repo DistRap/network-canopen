@@ -1,9 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Network.CANOpen.Test where
 
 import Control.Concurrent
---import Control.Monad
---import Control.Monad.IO.Class (MonadIO(liftIO))
+import Control.Monad
+import Control.Monad.IO.Class (MonadIO(liftIO))
 
 --import Data.Default.Class
 import Data.Word (Word8, Word32)
@@ -19,42 +18,19 @@ import Network.CANOpen.SDO
 import qualified Network.SLCAN
 import Network.SocketCAN
 import qualified Network.CANOpen.Serialize
+import qualified Network.CANOpen.SubBus
 
 import qualified System.IO
 
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TMVar
-import Control.Monad.Reader
-import Control.Monad.Trans.Reader (ReaderT)
 import qualified Data.Map
 import UnliftIO.Async (Async)
 import qualified UnliftIO.Async
 
 nID :: NodeID
 nID = NodeID 1
-
-newtype TBus m a = TBus { unTBus :: ReaderT (TMVar CANMessage) m a }
-  deriving ( Applicative
-           , Functor
-           , Monad
-           , MonadIO
-           , MonadReader (TMVar CANMessage)
-           , MonadTrans
-           )
-
-instance (MonadIO m, MonadCAN m) => MonadCAN (TBus m) where
-  send = lift . send
-  recv = ask >>= liftIO . atomically . takeTMVar
-
-runTBus
-  :: Monad m
-  => TMVar CANMessage
-  -> TBus m a
-  -> m a
-runTBus s =
-  (`runReaderT` s)
-  . unTBus
 
 vendorID :: Variable Word32
 vendorID = Variable
@@ -159,8 +135,6 @@ main = do
 
     doLSS = not True -- False
 
-  cs <- newCANOpenState
-
   tb <- newEmptyTMVarIO
   sdoCmd :: TMVar SDOClientCommand <- newEmptyTMVarIO
   sdoRep :: TMVar SDOClientReply <- newEmptyTMVarIO
@@ -187,7 +161,7 @@ main = do
 
   --System.IO.withFile "/dev/can4discouart" System.IO.ReadWriteMode $ \h -> Network.SLCAN.runSLCAN h def $ do
   runSocketCAN "vcan0" $ do
-    runCANOpenT cs $ do
+    runCANOpen $ do
       --forever $ do
       --  switchModeGlobal LSSMode_Operation
       --  recv >>= l
@@ -201,8 +175,12 @@ main = do
         storeConfig >>= l
       --recv >>= l
 
-      UnliftIO.Async.async $ do
-        runTBus tb $ do
+      registerHandler
+        (sdoReplyID nID)
+        (atomically . writeTMVar tb)
+
+      -- UnliftIO.Async.async $ do
+      Network.CANOpen.SubBus.runSubBus tb $ do
           {--
           -- read vendor id
           raw <- sdoClientUpload nID (Mux 0x1018 1) 
@@ -240,22 +218,6 @@ main = do
           -- at 0x60FF $ field "target_velocity" sint32
           sdoClientDownload @Int32 nID (Mux 0x60FF 0) (123242)
           --}
-
-      registerHandler
-        (sdoReplyID nID)
-        (atomically . writeTMVar tb)
-
-      forever $ do
-        msg@CANMessage{..} <- recv
-        handlers <- asks canOpenStateHandlers >>= liftIO . readTVarIO
-        forM_
-          (Data.Map.toList handlers)
-          (\(arb, handler) ->
-            when
-              (arb == canMessageArbitrationField)
-              $ liftIO
-              $ handler msg
-          )
 
       pure ()
   >>= print

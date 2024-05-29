@@ -3,15 +3,15 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.CANOpen where
 
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), forever, forM_, when)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.Reader (MonadReader, ask)
+import Control.Monad.Reader (MonadReader, ask, asks)
 import Control.Monad.Trans (MonadTrans, lift)
 import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Map (Map)
-import Network.CAN (CANArbitrationField, CANMessage)
+import Network.CAN (CANArbitrationField, CANMessage(..))
 import Network.CAN.Class
 import Network.CANOpen.Types (NodeID)
 import Network.CANOpen.NMT.Types (NMTState(..))
@@ -23,6 +23,7 @@ import Control.Concurrent.STM -- (TVar, TQueue)
 import qualified Data.Map
 import qualified Network.CANOpen.NMT.Types
 import qualified UnliftIO
+import qualified UnliftIO.Async
 
 instance (MonadUnliftIO m, Exception e) => MonadUnliftIO (ExceptT e m) where
     withRunInIO exceptToIO = ExceptT $ UnliftIO.try $ do
@@ -84,6 +85,32 @@ runCANOpenT s =
     (`runReaderT` s)
   . runExceptT
   . _unCANOpenT
+
+-- | Run CANOpenT transformer
+runCANOpen
+  :: ( MonadCAN m
+     , MonadIO m
+     , MonadUnliftIO m
+     )
+  => CANOpenT m a
+  -> m (Either CANOpenError a)
+runCANOpen app = do
+  cs <- liftIO $ newCANOpenState
+  runCANOpenT cs $ do
+    -- incoming message router
+    UnliftIO.Async.async $ do
+      forever $ do
+        msg@CANMessage{..} <- recv
+        handlers <- asks canOpenStateHandlers >>= liftIO . readTVarIO
+        forM_
+          (Data.Map.toList handlers)
+          (\(arb, handler) ->
+            when
+              (arb == canMessageArbitrationField)
+              $ liftIO
+              $ handler msg
+          )
+    app
 
 class MonadCANOpen m where
   addNode
