@@ -64,6 +64,7 @@ main = do
   cs <- newCANOpenState
 
   tb <- newEmptyTMVarIO
+  {--
   tcmd :: TMVar (TBus (CANOpenT (Network.SocketCAN.SocketCANT IO)) a) <- newEmptyTMVarIO
 
   UnliftIO.Async.async $ do
@@ -72,8 +73,9 @@ main = do
        $ writeTMVar
            tcmd
            $ sdoClientUpload @Int32 nID (Mux 0x606C 0) -- undefined :: _
+  --}
 
-  --System.IO.withFile "/tmp/ttyV0" System.IO.ReadWriteMode $ \h -> Network.SLCAN.runSLCAN h def $ do
+  --System.IO.withFile "/dev/can4discouart" System.IO.ReadWriteMode $ \h -> Network.SLCAN.runSLCAN h def $ do
   runSocketCAN "vcan0" $ do
     runCANOpenT cs $ do
       --forever $ do
@@ -92,8 +94,9 @@ main = do
       UnliftIO.Async.async $ do
         runTBus tb $ do
           -- read vendor id
-          sdoClientUpload @Word32 nID (Mux 0x1018 1)
+          sdoClientUpload @Word32 nID (Mux 0x1018 1) >>= l
 
+          {--
           -- at 0x606C $ field "velocity_actual" sint32 & ro
           sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
           -- at 0x60FF $ field "target_velocity" sint32
@@ -103,6 +106,7 @@ main = do
             cmd <- liftIO . atomically . takeTMVar $ tcmd
             cmd >>= l
             --sdoClientUpload @Int32 nID (Mux 0x606C 0) >>= l
+          --}
 
       registerHandler
         (sdoReplyID nID)
