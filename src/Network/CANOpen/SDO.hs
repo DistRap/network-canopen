@@ -38,7 +38,7 @@ sdoClientUpload nID mux = do
         (sdoReplyUploadInitMux == mux)
         $ error "MuxMismatch"
 
-      let SDOInit{..} = sdoReplyUploadInitHeader
+      let x@SDOInit{..} = sdoReplyUploadInitHeader
       case sdoInitExpedited of
         True ->
           case sdoInitSizeIndicated of

@@ -101,7 +101,9 @@ runCANOpen app = do
     UnliftIO.Async.async $ do
       forever $ do
         msg@CANMessage{..} <- recv
-        handlers <- asks canOpenStateHandlers >>= liftIO . readTVarIO
+        handlers <-
+          asks canOpenStateHandlers
+          >>= liftIO . readTVarIO
         forM_
           (Data.Map.toList handlers)
           (\(arb, handler) ->
