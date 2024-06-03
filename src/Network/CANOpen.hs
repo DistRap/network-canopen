@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.CANOpen where
 
-import Control.Monad ((<=<), forever, forM_, when)
+import Control.Monad ((<=<), forever, forM_, void, when)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Reader (MonadReader, ask, asks)
@@ -13,11 +13,12 @@ import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Map (Map)
 import Network.CAN (CANArbitrationField, CANMessage(..))
 import Network.CAN.Class
-import Network.CANOpen.Types (NodeID)
+import Network.CANOpen.Class
 import Network.CANOpen.NMT.Types (NMTState(..))
+import Network.CANOpen.SDOClient
+import Network.CANOpen.Types (NodeID)
 import UnliftIO (Exception, MonadUnliftIO)
 
---import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM -- (TVar, TQueue)
 
 import qualified Data.Map
@@ -29,11 +30,6 @@ instance (MonadUnliftIO m, Exception e) => MonadUnliftIO (ExceptT e m) where
     withRunInIO exceptToIO = ExceptT $ UnliftIO.try $ do
         UnliftIO.withRunInIO $ \runInIO ->
             exceptToIO (runInIO . (either UnliftIO.throwIO pure <=< runExceptT))
-
-data Node = Node
-  { nodeNMTState :: TVar NMTState
-  --, nodeThreads :: [ThreadId]
-  }
 
 data CANOpenState = CANOpenState
   { canOpenStateNodes :: TVar (Map NodeID Node)
@@ -98,7 +94,7 @@ runCANOpen app = do
   cs <- liftIO $ newCANOpenState
   runCANOpenT cs $ do
     -- incoming message router
-    UnliftIO.Async.async $ do
+    void $ UnliftIO.Async.async $ do
       forever $ do
         msg@CANMessage{..} <- recv
         handlers <-
@@ -114,27 +110,27 @@ runCANOpen app = do
           )
     app
 
-class MonadCANOpen m where
-  addNode
-    :: NodeID
-    -> m Node
-
-  registerHandler
-    :: CANArbitrationField
-    -> (CANMessage -> IO ())
-    -> m ()
-
 --setOperational = undefined
 --sdoWrite = undefined
 --sdoRead = undefined
 
-instance MonadIO m => MonadCANOpen (CANOpenT m) where
+instance
+  ( MonadCAN m
+  , MonadIO m
+  , MonadUnliftIO m
+  ) => MonadCANOpen (CANOpenT m)
+  where
+
   addNode nID = do
+    sdoClient <- newSDOClient nID
+
     nState <- liftIO $ newTVarIO NMTState_Initialising
     let
       newNode =
         Node
-        { nodeNMTState = nState
+        { nodeID = nID
+        , nodeNMTState = nState
+        , nodeSDOClient = sdoClient
         }
 
     ts <- ask

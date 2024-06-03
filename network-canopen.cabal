@@ -34,11 +34,14 @@ library
   import:              commons
   hs-source-dirs:      src
   exposed-modules:     Network.CANOpen
+                       Network.CANOpen.Class
                        Network.CANOpen.Serialize
                        Network.CANOpen.Types
                        Network.CANOpen.LSS
                        Network.CANOpen.LSS.Types
                        Network.CANOpen.NMT.Types
+                       Network.CANOpen.SDOClient
+                       -- TODO: rename to CANOpen.LowLevel.SDO
                        Network.CANOpen.SDO
                        Network.CANOpen.SDO.Types
                        Network.CANOpen.SubBus
