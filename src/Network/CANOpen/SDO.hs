@@ -9,15 +9,20 @@ import qualified Control.Monad
 import qualified Network.CAN
 import qualified Network.CANOpen.Serialize
 
-data SDOClientCommand
-  = SDOClientCommand_Upload NodeID Mux
-  | SDOClientCommand_Download NodeID Mux [Word8]
-  deriving (Eq, Show)
+data SDOClientUpload = SDOClientUpload
+  { sdoClientUploadNodeID :: NodeID
+  , sdoClientUploadMux :: Mux
+  } deriving (Eq, Show)
 
-data SDOClientReply
-  = SDOClientReply_Upload [Word8]
-  | SDOClientReply_Download
-  deriving (Eq, Show)
+newtype SDOClientUploadReply = SDOClientUploadReply
+  { unSDOClientUploadReply :: [Word8]
+  } deriving (Eq, Show)
+
+data SDOClientDownload = SDOClientDownload
+  { sdoClientDownloadNodeID :: NodeID
+  , sdoClientDownloadMux :: Mux
+  , sdoClientDownloadBytes :: [Word8]
+  } deriving (Eq, Show)
 
 -- aka read (upload) from device
 sdoClientUpload

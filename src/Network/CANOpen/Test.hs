@@ -64,68 +64,67 @@ targetVelocity = Variable
 
 data SDOClient = SDOClient
   { sdoClientAsync :: Async ()
-  , sdoClientCommand :: TMVar SDOClientCommand
-  , sdoClientReply :: TMVar SDOClientReply
+  , sdoClientUpload' :: TMVar SDOClientUpload
+  , sdoClientUploadReply :: TMVar SDOClientUploadReply
+  , sdoClientDownload' :: TMVar SDOClientDownload
   }
 
+-- | Read SDO variable
+--
+-- Sends SDOClientUpload, waits for reply
+-- and returns deserialized value
 sdoRead
   :: ( CSerialize a
      , MonadIO m
      )
-  => TMVar SDOClientCommand
-  -> TMVar SDOClientReply
+  => SDOClient
+--  -> TMVar SDOClientCommand
+--  -> TMVar SDOClientReply
   -> NodeID
   -> Variable a
   -> m a
-sdoRead cmd reply nId var = do
+sdoRead client nId var = do
   liftIO
     $ atomically
     $ writeTMVar
-        cmd
-        $ SDOClientCommand_Upload
-            nId
-            (variableMux var)
+        (sdoClientUpload' client)
+        $ SDOClientUpload
+            { sdoClientUploadNodeID = nId
+            , sdoClientUploadMux = variableMux var
+            }
 
   rep <-
     liftIO
     $ atomically
-    $ takeTMVar reply
+    $ takeTMVar
+    $ sdoClientUploadReply client
 
-  case rep of
-    SDOClientReply_Download -> error "bogus reply"
-    SDOClientReply_Upload bytes -> do
-      pure
-      $ either (error "Deserialize fail") id
-      $ Network.CANOpen.Serialize.runGet bytes
+  pure
+    $ either (error "Deserialize fail") id
+    $ Network.CANOpen.Serialize.runGet
+    $ unSDOClientUploadReply rep
 
 sdoWrite
   :: ( CSerialize a
      , MonadIO m
      )
-  => TMVar SDOClientCommand
-  -> TMVar SDOClientReply
+  => SDOClient
+--  => TMVar SDOClientCommand
+--  -> TMVar SDOClientReply
   -> NodeID
   -> Variable a
   -> a
   -> m ()
-sdoWrite cmd reply nId var val = do
+sdoWrite client nId var val = do
   liftIO
     $ atomically
     $ writeTMVar
-        cmd
-        $ SDOClientCommand_Download
-            nId
-            (variableMux var)
-            (Network.CANOpen.Serialize.runPut val)
-
-  rep <-
-    liftIO
-    $ atomically
-    $ takeTMVar reply
-
-  case rep of
-    SDOClientReply_Download -> pure ()
-    SDOClientReply_Upload bytes -> error "Bogus"
+        (sdoClientDownload' client)
+        $ SDOClientDownload
+            { sdoClientDownloadNodeID = nId
+            , sdoClientDownloadMux = variableMux var
+            , sdoClientDownloadBytes = Network.CANOpen.Serialize.runPut val
+            }
 
 main :: IO ()
 main = do
@@ -136,14 +135,24 @@ main = do
     doLSS = not True -- False
 
   tb <- newEmptyTMVarIO
-  sdoCmd :: TMVar SDOClientCommand <- newEmptyTMVarIO
-  sdoRep :: TMVar SDOClientReply <- newEmptyTMVarIO
+  sdoUp <- newEmptyTMVarIO
+  sdoUpReply <- newEmptyTMVarIO
+  sdoDown <- newEmptyTMVarIO
+  --sdoRep :: TMVar SDOClientReply <- newEmptyTMVarIO
+
+  let
+    sdoClient =
+      SDOClient
+        { sdoClientAsync = undefined
+        , sdoClientUpload' = sdoUp
+        , sdoClientUploadReply = sdoUpReply
+        , sdoClientDownload' = sdoDown
+        }
 
   UnliftIO.Async.async $ do
     forever $ do
       sdoRead
-        sdoCmd
-        sdoRep
+        sdoClient
         nID
         ioOutput
         >>= l
@@ -152,8 +161,7 @@ main = do
 
       forM_ [0, 1, 2, 4, 8] $ \x -> do
         sdoWrite
-          sdoCmd
-          sdoRep
+          sdoClient
           nID
           ioOutput
           x
@@ -193,24 +201,39 @@ main = do
           --}
 
           forever $ do
-            cmd <- liftIO . atomically . takeTMVar $ sdoCmd
+            cmd <-
+              liftIO
+                . atomically
+                $ (Left <$> readTMVar (sdoClientUpload' sdoClient))
+                  `orElse`
+                  (Right <$> readTMVar (sdoClientDownload' sdoClient))
+
             l cmd
             case cmd of
-              SDOClientCommand_Upload nID mux -> do
-                raw <- sdoClientUpload nID mux
+              Left SDOClientUpload{..} -> do
+                raw <-
+                  sdoClientUpload
+                    sdoClientUploadNodeID
+                    sdoClientUploadMux
                 liftIO
                   . atomically
-                  $ writeTMVar
-                      sdoRep
-                      $ SDOClientReply_Upload raw
+                  $ do
+                      void
+                        $ takeTMVar (sdoClientUpload' sdoClient)
+                      writeTMVar
+                        (sdoClientUploadReply sdoClient)
+                        $ SDOClientUploadReply raw
 
-              SDOClientCommand_Download nID mux bytes -> do
-                raw <- sdoClientDownload nID mux bytes
-                liftIO
+              Right SDOClientDownload{..} -> do
+                sdoClientDownload
+                  sdoClientDownloadNodeID
+                  sdoClientDownloadMux
+                  sdoClientDownloadBytes
+                void
+                  . liftIO
                   . atomically
-                  $ writeTMVar
-                      sdoRep
-                      $ SDOClientReply_Download
+                  $ takeTMVar
+                      (sdoClientDownload' sdoClient)
 
           {--
           -- at 0x606C $ field "velocity_actual" sint32 & ro
