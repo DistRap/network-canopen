@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 module Network.CANOpen.Test where
 
 import Control.Concurrent
@@ -52,6 +53,21 @@ targetVelocity = Variable
   , variablePerm = Permission_ReadWrite
   }
 
+-- vcb vacuum gauge 3
+gauge3enable :: Variable Bool
+gauge3enable = Variable
+  { variableName = "VacuumGauge3enable"
+  , variableMux = Mux 0x7300 0
+  , variablePerm = Permission_ReadWrite
+  }
+
+gauge3actual :: Variable Float
+gauge3actual = Variable
+  { variableName = "VacuumGauge3actual"
+  , variableMux = Mux 0x7302 0
+  , variablePerm = Permission_Read
+  }
+
 main :: IO ()
 main = do
   let
@@ -85,6 +101,12 @@ main = do
     void $ runCANOpen $ do
       io <- addNode (NodeID 1)
       vcb <- addNode (NodeID 2)
+      let
+        ioOutWrite :: MonadIO m => Word8 -> m ()
+        ioOutWrite = sdoWrite io ioOutput
+        vcbOutWrite :: MonadIO m => Word8 -> m ()
+        vcbOutWrite = sdoWrite vcb ioOutput
+
       sdoRead
         io
         ioOutput
@@ -95,12 +117,45 @@ main = do
         ioOutput
         >>= l
 
+      sdoWrite
+        vcb
+        gauge3enable
+        True
+
+      -- release some
+      forM_ [0, 3, 0] $ \x -> do
+        vcbOutWrite x
+        liftIO $ threadDelay 2_000_000
+
+      forM_ [0..1000] $ \_ -> do
+        sdoRead
+          vcb
+          gauge3actual
+        >>= l
+
+      sdoWrite
+        vcb
+        gauge3enable
+        False
+
+      {--
       forM_ [0, 1, 2, 4, 8, 0] $ \x -> do
-        sdoWrite
-          io
-          ioOutput
-          x
-        liftIO $ threadDelay 1000000
+        ioOutWrite x
+        liftIO $ threadDelay 500_000
+      --}
+
+      -- #1 turbo pump vent
+      -- #2 fat vent
+      {--
+      forM_ [0, 1, 0, 2, 0] $ \x -> do
+        vcbOutWrite x
+        liftIO $ threadDelay 1_000_000
+      --}
+      {--
+      forM_ (take 20 $ cycle [0, 2]) $ \x -> do
+        vcbOutWrite x
+        liftIO $ threadDelay 500_000
+      --}
 
       --forever $ do
       --  switchModeGlobal LSSMode_Operation
