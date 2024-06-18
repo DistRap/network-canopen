@@ -102,41 +102,40 @@ main = do
       io <- addNode (NodeID 1)
       vcb <- addNode (NodeID 2)
       let
-        ioOutWrite :: MonadIO m => Word8 -> m ()
-        ioOutWrite = sdoWrite io ioOutput
-        vcbOutWrite :: MonadIO m => Word8 -> m ()
-        vcbOutWrite = sdoWrite vcb ioOutput
+        outWrite :: MonadNode m => Word8 -> m ()
+        outWrite = sdoWrite ioOutput
 
-      sdoRead
-        io
-        ioOutput
-        >>= l
+      withNode io $
+        sdoRead
+          ioOutput
+          >>= l
 
-      sdoRead
-        vcb
-        ioOutput
-        >>= l
+      withNode vcb $ do
+        sdoRead
+          ioOutput
+          >>= l
 
-      sdoWrite
-        vcb
-        gauge3enable
-        True
+        sdoWrite
+          gauge3enable
+          True
 
       -- release some
       forM_ [0, 3, 0] $ \x -> do
-        vcbOutWrite x
+        withNode vcb $ outWrite x
         liftIO $ threadDelay 2_000_000
 
-      forM_ [0..1000] $ \_ -> do
-        sdoRead
-          vcb
-          gauge3actual
-        >>= l
+      forM_ [0..1000] $ \(_ :: Int) -> do
+        withNode vcb $
+          sdoRead
+            gauge3actual
+          >>= l
 
-      sdoWrite
-        vcb
-        gauge3enable
-        False
+      withNode vcb $ do
+        sdoWrite
+          gauge3enable
+          False
+
+        outWrite 0
 
       {--
       forM_ [0, 1, 2, 4, 8, 0] $ \x -> do

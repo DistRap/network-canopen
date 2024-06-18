@@ -2,6 +2,8 @@ module Network.CANOpen.SDOClient where
 
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO(liftIO))
+import Control.Monad.Reader (MonadReader, ask)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 
 import Network.CAN
 import Network.CANOpen.Class
@@ -21,14 +23,15 @@ import qualified UnliftIO.Async
 --
 -- Sends SDOClientUpload, waits for reply
 -- and returns deserialized value
-sdoRead
+sdoReadNode
   :: ( CSerialize a
      , MonadIO m
+     , MonadReader Node m
      )
   => Node
   -> Variable a
   -> m a
-sdoRead node var = do
+sdoReadNode node var = do
   liftIO
     $ atomically
     $ writeTMVar
@@ -51,7 +54,7 @@ sdoRead node var = do
     $ unSDOClientUploadReply rep
 
 -- | Write SDO variable
-sdoWrite
+sdoWriteNode
   :: ( CSerialize a
      , MonadIO m
      )
@@ -59,7 +62,7 @@ sdoWrite
   -> Variable a
   -> a
   -> m ()
-sdoWrite node var val = do
+sdoWriteNode node var val = do
   liftIO
     $ atomically
     $ writeTMVar
@@ -75,6 +78,33 @@ sdoWrite node var val = do
     $ takeTMVar
     $ sdoClientDownloadReply
     $ nodeSDOClient node
+
+-- Variants using MonadReader
+
+withNode
+  :: Node
+  -> ReaderT Node m a
+  -> m a
+withNode = flip runReaderT
+
+sdoRead
+  :: ( CSerialize a
+     , MonadIO m
+     , MonadReader Node m
+     )
+  => Variable a
+  -> m a
+sdoRead var = ask >>= \node -> sdoReadNode node var
+
+sdoWrite
+  :: ( CSerialize a
+     , MonadIO m
+     , MonadReader Node m
+     )
+  => Variable a
+  -> a
+  -> m ()
+sdoWrite var val = ask >>= \node -> sdoWriteNode node var val
 
 -- | Create and register a SDO client
 -- for given @NodeID@

@@ -1,6 +1,8 @@
 module Network.CANOpen.Class where
 
 import Control.Concurrent.STM (TVar, TMVar)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Reader (MonadReader)
 import UnliftIO.Async (Async)
 import Network.CANOpen.Types (NodeID)
 import Network.CANOpen.SDO
@@ -32,3 +34,8 @@ class MonadCAN m => MonadCANOpen m where
     :: CANArbitrationField
     -> (CANMessage -> IO ())
     -> m ()
+
+type MonadNode m =
+  ( MonadIO m
+  , MonadReader Node m
+  )

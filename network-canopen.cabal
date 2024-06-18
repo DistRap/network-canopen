@@ -22,7 +22,10 @@ extra-doc-files:
 common commons
   ghc-options:         -Wall
   default-extensions:  BinaryLiterals
+                       ConstraintKinds
                        DefaultSignatures
+                       FlexibleContexts
+                       FlexibleInstances
                        LambdaCase
                        Rank2Types
                        RecordWildCards
