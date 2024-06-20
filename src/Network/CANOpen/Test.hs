@@ -5,7 +5,6 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO(liftIO))
 
---import Data.Default.Class
 import Data.Word (Word8, Word32)
 import Data.Int (Int32)
 
@@ -15,10 +14,7 @@ import Network.CANOpen.LSS
 import Network.CANOpen.SDOClient
 import Network.CANOpen.Types
 --import Network.CANOpen.LSS.Types
---import qualified Network.SLCAN
 import Network.SocketCAN
-
---import qualified System.IO
 
 nID :: NodeID
 nID = NodeID 1
@@ -96,7 +92,6 @@ main = do
         threadDelay 1000000
   --}
 
-  --System.IO.withFile "/dev/can4discouart" System.IO.ReadWriteMode $ \h -> Network.SLCAN.runSLCAN h def $ do
   runSocketCAN "vcan0" $ do
     void $ runCANOpen $ do
       io <- addNode (NodeID 1)
