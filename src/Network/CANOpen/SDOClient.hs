@@ -168,6 +168,7 @@ newSDOClient nID = do
                       sdoDownReply
                       True
 
+  UnliftIO.Async.link sdoClientAsync
   pure $
     SDOClient
     { sdoClientAsync = sdoClientAsync
