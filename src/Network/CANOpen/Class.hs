@@ -25,6 +25,12 @@ data Node = Node
   , nodeSDOClient :: SDOClient
   }
 
+instance Eq Node where
+  (==) a b = nodeID a == nodeID b
+
+instance Show Node where
+  show = ("CANOpen node ID "++) . show . nodeID
+
 class MonadCAN m => MonadCANOpen m where
   addNode
     :: NodeID
