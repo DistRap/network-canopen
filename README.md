@@ -2,7 +2,6 @@
 
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/DistRap/network-canopen/ci.yaml?branch=main)](https://github.com/DistRap/network-canopen/actions/workflows/ci.yaml)
 [![Hackage version](https://img.shields.io/hackage/v/network-canopen.svg?color=success)](https://hackage.haskell.org/package/network-canopen)
-[![Dependencies](https://img.shields.io/hackage-deps/v/network-canopen?label=Dependencies)](https://packdeps.haskellers.com/feed?needle=network-canopen)
 
 CANOpen
 
