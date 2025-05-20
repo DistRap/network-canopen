@@ -92,7 +92,7 @@ main = do
         threadDelay 1000000
   --}
 
-  runSocketCAN "vcan0" $ do
+  runSocketCAN (mkCANInterface "vcan0") $ do
     void $ runCANOpen $ do
       io <- addNode (NodeID 1)
       vcb <- addNode (NodeID 2)
