@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 module Network.CANOpen.SDOClient where
 
 import Control.Monad
@@ -15,9 +16,10 @@ import qualified Network.CANOpen.SubBus
 
 import Control.Concurrent.STM (atomically, orElse)
 import Control.Concurrent.STM.TMVar
---import UnliftIO.Async (Async)
 import UnliftIO (MonadUnliftIO)
 import qualified UnliftIO.Async
+import qualified UnliftIO.Exception
+import qualified UnliftIO.Timeout
 
 -- | Read SDO variable
 --
@@ -142,31 +144,46 @@ newSDOClient nID = do
 
           case cmd of
             Left SDOClientUpload{..} -> do
-              raw <-
-                sdoClientUpload
-                  sdoClientUploadNodeID
-                  sdoClientUploadMux
-              liftIO
-                . atomically
-                $ do
-                    void
-                      $ takeTMVar sdoUp
-                    writeTMVar
-                      sdoUpReply
-                      $ SDOClientUploadReply raw
+              UnliftIO.Timeout.timeout
+                1_000_000
+                $ sdoClientUpload
+                    sdoClientUploadNodeID
+                    sdoClientUploadMux
+              >>= \case
+                Nothing ->
+                  UnliftIO.Exception.throwIO
+                    $ CANOpenException_SDOUploadTimeout
+                        sdoClientUploadNodeID
+                Just raw ->
+                  liftIO
+                    . atomically
+                    $ do
+                        void
+                          $ takeTMVar sdoUp
+                        writeTMVar
+                          sdoUpReply
+                          $ SDOClientUploadReply raw
 
             Right SDOClientDownload{..} -> do
-              sdoClientDownload
-                sdoClientDownloadNodeID
-                sdoClientDownloadMux
-                sdoClientDownloadBytes
-              liftIO
-                . atomically
-                $ do
-                    _ <- takeTMVar sdoDown
-                    writeTMVar
-                      sdoDownReply
-                      True
+              UnliftIO.Timeout.timeout
+                1_000_000
+                $ sdoClientDownload
+                    sdoClientDownloadNodeID
+                    sdoClientDownloadMux
+                    sdoClientDownloadBytes
+              >>= \case
+                Nothing ->
+                  UnliftIO.Exception.throwIO
+                    $ CANOpenException_SDODownloadTimeout
+                        sdoClientDownloadNodeID
+                _ -> do
+                  liftIO
+                    . atomically
+                    $ do
+                        _ <- takeTMVar sdoDown
+                        writeTMVar
+                          sdoDownReply
+                          True
 
   UnliftIO.Async.link sdoClientAsync
   pure $
