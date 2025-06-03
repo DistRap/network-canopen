@@ -2,18 +2,17 @@ module Network.CANOpen.Class
   ( SDOClient(..)
   , Node(..)
   , MonadCANOpen(..)
-  , MonadNode
+  , MonadNode(..)
   , CANOpenException(..)
   )
   where
 
 import Control.Concurrent.STM (TVar, TMVar)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader (MonadReader)
 import UnliftIO.Async (Async)
 import UnliftIO.Exception (Exception)
-import Network.CANOpen.Types (NodeID)
 import Network.CANOpen.SDO
+import Network.CANOpen.Serialize (CSerialize)
+import Network.CANOpen.Types (NodeID, Variable)
 import Network.CAN (CANArbitrationField, CANMessage)
 import Network.CAN.Class (MonadCAN)
 
@@ -49,10 +48,17 @@ class MonadCAN m => MonadCANOpen m where
     -> (CANMessage -> IO ())
     -> m ()
 
-type MonadNode m =
-  ( MonadIO m
-  , MonadReader Node m
-  )
+class Monad m => MonadNode m where
+  sdoRead
+    :: CSerialize a
+    => Variable a
+    -> m a
+
+  sdoWrite
+    :: CSerialize a
+    => Variable a
+    -> a
+    -> m ()
 
 data CANOpenException
   = CANOpenException_SDOUploadTimeout NodeID

@@ -1,4 +1,5 @@
 {-# LANGUAGE NumericUnderscores #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.CANOpen.SDOClient where
 
 import Control.Monad
@@ -88,16 +89,16 @@ withNode
   -> m a
 withNode = flip runReaderT
 
-sdoRead
+sdoRead'
   :: ( CSerialize a
      , MonadIO m
      , MonadReader Node m
      )
   => Variable a
   -> m a
-sdoRead var = ask >>= \node -> sdoReadNode node var
+sdoRead' var = ask >>= \node -> sdoReadNode node var
 
-sdoWrite
+sdoWrite'
   :: ( CSerialize a
      , MonadIO m
      , MonadReader Node m
@@ -105,7 +106,11 @@ sdoWrite
   => Variable a
   -> a
   -> m ()
-sdoWrite var val = ask >>= \node -> sdoWriteNode node var val
+sdoWrite' var val = ask >>= \node -> sdoWriteNode node var val
+
+instance MonadIO m => MonadNode (ReaderT Node m) where
+  sdoRead = sdoRead'
+  sdoWrite = sdoWrite'
 
 -- | Create and register a SDO client
 -- for given @NodeID@
