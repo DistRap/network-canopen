@@ -28,7 +28,6 @@ import qualified UnliftIO.Timeout
 sdoReadNode
   :: ( CSerialize a
      , MonadIO m
-     , MonadReader Node m
      )
   => Node
   -> Variable a
