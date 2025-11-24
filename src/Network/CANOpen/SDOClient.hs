@@ -36,7 +36,7 @@ sdoReadNode
 sdoReadNode node var = do
   liftIO
     $ atomically
-    $ writeTMVar
+    $ putTMVar
         (sdoClientUpload' (nodeSDOClient node))
         $ SDOClientUpload
             { sdoClientUploadNodeID = nodeID node
@@ -67,7 +67,7 @@ sdoWriteNode
 sdoWriteNode node var val = do
   liftIO
     $ atomically
-    $ writeTMVar
+    $ putTMVar
         (sdoClientDownload' (nodeSDOClient node))
         $ SDOClientDownload
             { sdoClientDownloadNodeID = nodeID node
@@ -133,7 +133,7 @@ newSDOClient nID = do
 
   registerHandler
     (sdoReplyID nID)
-    (atomically . writeTMVar subBusTMVar)
+    (atomically . putTMVar subBusTMVar)
 
   sdoClientAsync <-
     UnliftIO.Async.async $ do
