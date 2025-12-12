@@ -46,7 +46,7 @@ instance Arbitrary NodeIdentity where
 -- | Dictionary index
 newtype Index = Index
   { unIndex :: Word16 }
-  deriving (Eq, Ord, Show, Num)
+  deriving (Eq, Enum, Ord, Show, Num)
 
 instance Arbitrary Index where
   arbitrary = Index <$> arbitrary
@@ -58,7 +58,7 @@ instance CSerialize Index where
 -- | Dictionary sub-index
 newtype SubIndex = SubIndex
   { unSubIndex :: Word8 }
-  deriving (Eq, Ord, Show, Num)
+  deriving (Eq, Enum, Ord, Show, Num)
 
 instance CSerialize SubIndex where
   put = put . unSubIndex
