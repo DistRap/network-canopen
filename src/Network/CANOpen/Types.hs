@@ -11,9 +11,12 @@ module Network.CANOpen.Types
   , Permission(..)
   -- ** Variable
   , Variable(..)
+  , variableSize
   ) where
 
+import Data.Proxy (Proxy(Proxy))
 import Data.Word (Word8, Word16, Word32)
+import Network.CANOpen.FixedSize (FixedSize(..))
 import Network.CANOpen.Serialize (CSerialize(..))
 import Test.QuickCheck.Arbitrary (Arbitrary(..))
 import qualified Test.QuickCheck
@@ -102,3 +105,10 @@ data Variable a =
     , variablePerm :: Permission
     }
   deriving (Eq, Ord, Show)
+
+variableSize
+  :: forall a
+   . FixedSize a
+  => Variable a
+  -> Word8
+variableSize _ = fixedSize (Proxy @a)
