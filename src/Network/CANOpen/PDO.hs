@@ -5,6 +5,7 @@ module Network.CANOpen.PDO
   , pdoMapArray
   , rpdo1
   , tpdo1
+  , pdoBaseIndex
   , pdoMapSize
   , writePDOMap
   , readPDOMapEntries
@@ -19,7 +20,7 @@ import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import Network.CANOpen.Class (MonadNode(..))
 import Network.CANOpen.Types
-  ( Array
+  ( Array(..)
   , Index(..)
   , Mux(..)
   , Permission(..)
@@ -92,6 +93,19 @@ rpdo1 = PDO_Receive
 
 tpdo1 :: PDO 1
 tpdo1 = PDO_Transmit
+
+-- | Starting index (memory address) of the PDO
+--
+-- Used to assign PDO to SyncManager (EtherCAT)
+pdoBaseIndex
+  :: forall n . KnownNat n
+  => PDO n
+  -> Index
+pdoBaseIndex =
+    muxIndex
+  . variableMux
+  . arrayCount
+  . pdoMapArray
 
 -- | Full length of the mapping in bytes
 pdoMapSize
