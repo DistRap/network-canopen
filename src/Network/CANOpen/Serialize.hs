@@ -18,6 +18,7 @@ import Data.Word (Word8, Word16, Word32, Word64)
 import Data.Int (Int8, Int16, Int32, Int64)
 
 import qualified Data.ByteString
+import qualified Data.Char
 import qualified Data.Serialize.Get
 import qualified Data.Serialize.IEEE754
 import qualified Data.Serialize.Put
@@ -117,3 +118,22 @@ instance CSerialize Float where
 instance CSerialize Double where
   put = Data.Serialize.IEEE754.putFloat64le
   get = Data.Serialize.IEEE754.getFloat64le
+
+
+-- * String
+
+-- assumes null terminated ASCII string
+instance CSerialize String where
+  put =
+      mapM_
+        Data.Serialize.Put.putWord8
+    . map
+        (fromIntegral . Data.Char.ord)
+    . (<> "\NUL")
+  get = do
+    let
+      go =
+        Data.Serialize.Get.getWord8 >>= \case
+          0 -> pure []
+          x -> ((Data.Char.chr $ fromIntegral x):) <$> go
+    go
