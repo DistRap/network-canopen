@@ -23,6 +23,7 @@ import Data.Word (Word8, Word16, Word32)
 import Network.CANOpen.FixedSize (FixedSize(..))
 import Network.CANOpen.Serialize (CSerialize(..))
 import Test.QuickCheck.Arbitrary (Arbitrary(..))
+import qualified Network.CANOpen.Util
 import qualified Test.QuickCheck
 
 newtype NodeID = NodeID
@@ -53,7 +54,10 @@ instance Arbitrary NodeIdentity where
 -- | Dictionary index
 newtype Index = Index
   { unIndex :: Word16 }
-  deriving (Eq, Enum, Ord, Show, Num)
+  deriving (Eq, Enum, Ord, Num)
+
+instance Show Index where
+  show = ("Index "<>) . Network.CANOpen.Util.showHex . unIndex
 
 instance Arbitrary Index where
   arbitrary = Index <$> arbitrary

@@ -52,6 +52,7 @@ library
                        Network.CANOpen.SDO.Types
                        Network.CANOpen.SubBus
                        Network.CANOpen.Test
+                       Network.CANOpen.Util
 
   build-depends:       base >= 4.7 && < 5
                      , bytestring
