@@ -37,8 +37,8 @@ import Test.QuickCheck.Arbitrary.Generic (GenericArbitrary(..))
 import qualified Data.Map.Strict
 
 data PDOMapEntry = PDOMapEntry
-  { pdoMapEntryMux     :: Mux
-  , pdoMapEntryLength  :: Word8
+  { pdoMapEntryMux       :: Mux   -- ^ Mapped variable mux
+  , pdoMapEntryBitLength :: Word8 -- ^ Mapped variable size in bits
   } deriving (Eq, Generic, Ord, Show)
     deriving (Arbitrary) via GenericArbitrary PDOMapEntry
 
@@ -49,12 +49,12 @@ data PDOMapEntry = PDOMapEntry
 -- so we have to put/get it in reverse order
 instance CSerialize PDOMapEntry where
   put PDOMapEntry{..} = do
-    put pdoMapEntryLength
+    put pdoMapEntryBitLength
     put $ unSubIndex $ muxSubIndex pdoMapEntryMux
     put $ unIndex $ muxIndex pdoMapEntryMux
 
   get = do
-    pdoMapEntryLength <- get
+    pdoMapEntryBitLength <- get
     subIdx <- SubIndex <$> get
     idx <- Index <$> get
     let
@@ -132,8 +132,8 @@ writePDOMap pdo mappings = do
     asEntry :: SomeFixedSized Variable -> PDOMapEntry
     asEntry (SomeFixedSized var) =
       PDOMapEntry
-        { pdoMapEntryMux    = variableMux var
-        , pdoMapEntryLength = variableSize var
+        { pdoMapEntryMux       = variableMux var
+        , pdoMapEntryBitLength = 8 * variableSize var
         }
 
 readPDOMapEntries
