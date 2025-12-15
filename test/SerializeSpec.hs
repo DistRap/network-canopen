@@ -11,6 +11,7 @@ import Network.CANOpen.Types (Mux)
 import Network.CANOpen.LSS.Types (LSSRequest, LSSReply)
 import Network.CANOpen.NMT.Types (NMTMessage)
 import Network.CANOpen.SDO.Types (SDORequest, SDOReply)
+import Network.CANOpen.PDO (PDOMapEntry)
 
 -- | Test for roundtrip using @CSerialize@ instance
 roundtripS
@@ -37,3 +38,5 @@ spec = parallel $ do
   describe "SDO" $ do
     prop "SDORequest" $ roundtripS @SDORequest
     prop "SDOReply" $ roundtripS @SDOReply
+  describe "PDO" $ do
+    prop "PDOMapEntry" $ roundtripS @PDOMapEntry

@@ -23,7 +23,11 @@ common commons
   ghc-options:         -Wall
   default-extensions:  BinaryLiterals
                        ConstraintKinds
+                       DataKinds
                        DefaultSignatures
+                       DeriveGeneric
+                       DerivingStrategies
+                       DerivingVia
                        FlexibleContexts
                        FlexibleInstances
                        GADTs
@@ -46,6 +50,7 @@ library
                        Network.CANOpen.LSS
                        Network.CANOpen.LSS.Types
                        Network.CANOpen.NMT.Types
+                       Network.CANOpen.PDO
                        Network.CANOpen.SDOClient
                        -- TODO: rename to CANOpen.LowLevel.SDO
                        Network.CANOpen.SDO
@@ -59,6 +64,7 @@ library
                      , containers
                      , cereal
                      , data-default-class
+                     , generic-arbitrary
                      , QuickCheck
                      , lens
                      , mtl
