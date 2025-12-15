@@ -13,6 +13,9 @@ module Network.CANOpen.Types
   , Variable(..)
   , variableSize
   , SomeFixedSized(..)
+  -- ** Array
+  , Array(..)
+  , mkArray
   ) where
 
 import Data.Proxy (Proxy(Proxy))
@@ -121,3 +124,31 @@ data SomeFixedSized a where
     -> SomeFixedSized a
 
 deriving instance Show (SomeFixedSized Variable)
+
+-- | Homogeneous array, where first (@SubIndex@ 0) element
+-- is a count of the items starting at @SubIndex@ 1
+data Array a = Array
+  { arrayCount :: Variable Word8
+  , arrayElem  :: SubIndex -> Variable a
+  }
+
+mkArray
+  :: String
+  -> Index
+  -> Permission
+  -> Array a
+mkArray name idx perm =
+  Array
+    { arrayCount =
+        Variable
+          { variableName = name <> "Count"
+          , variableMux  = Mux idx 0
+          , variablePerm = perm
+          }
+    , arrayElem = \subIx ->
+        Variable
+          { variableName = name ++ show (unSubIndex subIx)
+          , variableMux  = Mux idx subIx
+          , variablePerm = perm
+        }
+    }
