@@ -12,6 +12,7 @@ module Network.CANOpen.Types
   -- ** Variable
   , Variable(..)
   , variableSize
+  , SomeFixedSized(..)
   ) where
 
 import Data.Proxy (Proxy(Proxy))
@@ -112,3 +113,11 @@ variableSize
   => Variable a
   -> Word8
 variableSize _ = fixedSize (Proxy @a)
+
+data SomeFixedSized a where
+  SomeFixedSized
+    :: FixedSize f
+    => a f
+    -> SomeFixedSized a
+
+deriving instance Show (SomeFixedSized Variable)

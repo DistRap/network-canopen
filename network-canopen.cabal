@@ -26,10 +26,12 @@ common commons
                        DefaultSignatures
                        FlexibleContexts
                        FlexibleInstances
+                       GADTs
                        LambdaCase
                        Rank2Types
                        RecordWildCards
                        ScopedTypeVariables
+                       StandaloneDeriving
                        TypeApplications
                        TypeFamilies
 
