@@ -2,10 +2,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.CANOpen.SDOClient where
 
-import Control.Monad
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
+import UnliftIO (MonadUnliftIO)
 
 import Network.CAN
 import Network.CANOpen.Class
@@ -17,7 +17,7 @@ import qualified Network.CANOpen.SubBus
 
 import Control.Concurrent.STM (atomically, orElse)
 import Control.Concurrent.STM.TMVar
-import UnliftIO (MonadUnliftIO)
+import qualified Control.Monad
 import qualified UnliftIO.Async
 import qualified UnliftIO.Exception
 import qualified UnliftIO.Timeout
@@ -74,7 +74,7 @@ sdoWriteNode node var val = do
             , sdoClientDownloadMux = variableMux var
             , sdoClientDownloadBytes = Network.CANOpen.Serialize.runPut val
             }
-  void
+  Control.Monad.void
     $ liftIO
     $ atomically
     $ takeTMVar
@@ -112,6 +112,45 @@ instance MonadIO m => MonadNode (ReaderT Node m) where
   sdoRead = sdoRead'
   sdoWrite = sdoWrite'
 
+sdoReadArray
+  :: ( MonadNode m
+     , CSerialize a
+     )
+  => Array a
+  -> m [a]
+sdoReadArray Array{..} = do
+  count <- sdoRead arrayCount
+  Control.Monad.forM
+    [1..fromIntegral count]
+    $ sdoRead . arrayElem
+
+sdoWriteArray
+  :: ( MonadNode m
+     , CSerialize a
+     )
+  => Array a
+  -> [a]
+  -> m ()
+sdoWriteArray Array{..} items = do
+  -- Clear mapping by writing 0 count
+  sdoWrite
+    arrayCount
+    0
+
+  -- Write entries
+  Control.Monad.forM_
+    (zip [1..] items)
+    $ \(subIdx, item) ->
+        sdoWrite
+          (arrayElem subIdx)
+          item
+
+  -- Write new count
+  sdoWrite
+    arrayCount
+    $ fromIntegral
+    $ length items
+
 -- | Create and register a SDO client
 -- for given @NodeID@
 newSDOClient
@@ -138,7 +177,7 @@ newSDOClient nID = do
   sdoClientAsync <-
     UnliftIO.Async.async $ do
       Network.CANOpen.SubBus.runSubBus subBusTMVar $ do
-        forever $ do
+        Control.Monad.forever $ do
           cmd <-
             liftIO
               . atomically
@@ -162,7 +201,7 @@ newSDOClient nID = do
                   liftIO
                     . atomically
                     $ do
-                        void
+                        Control.Monad.void
                           $ takeTMVar sdoUp
                         writeTMVar
                           sdoUpReply
