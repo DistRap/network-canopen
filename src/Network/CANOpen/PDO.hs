@@ -82,7 +82,8 @@ pdoMapArray pdo =
         PDO_Receive  -> 0x1600
         PDO_Transmit -> 0x1A00
       )
-      + fromIntegral idx
+      -- 1-indexed, we should also disallow @PDO 0@
+      + (fromIntegral idx - 1)
     )
     Permission_ReadWrite
   where
