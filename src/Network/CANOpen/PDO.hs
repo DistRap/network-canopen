@@ -17,7 +17,7 @@ import Data.Word (Word8)
 import Data.Map (Map)
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
-import Network.CANOpen.Class (MonadNode)
+import Network.CANOpen.Class (MonadNode(..))
 import Network.CANOpen.Types
   ( Array
   , Index(..)
@@ -34,7 +34,6 @@ import Test.QuickCheck (Arbitrary(..))
 import Test.QuickCheck.Arbitrary.Generic (GenericArbitrary(..))
 
 import qualified Data.Map.Strict
-import qualified Network.CANOpen.SDOClient
 
 data PDOMapEntry = PDOMapEntry
   { pdoMapEntryMux     :: Mux
@@ -111,7 +110,7 @@ writePDOMap
   -> [SomeFixedSized Variable]
   -> m ()
 writePDOMap pdo mappings = do
-  Network.CANOpen.SDOClient.sdoWriteArray
+  sdoWriteArray
     (pdoMapArray pdo)
     $ map asEntry mappings
   where
@@ -128,9 +127,7 @@ readPDOMapEntries
      )
   => PDO n
   -> m [PDOMapEntry]
-readPDOMapEntries =
-  Network.CANOpen.SDOClient.sdoReadArray
-  . pdoMapArray
+readPDOMapEntries = sdoReadArray . pdoMapArray
 
 mkDictionary
   :: [SomeFixedSized Variable]

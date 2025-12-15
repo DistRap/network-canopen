@@ -12,11 +12,13 @@ import UnliftIO.Async (Async)
 import UnliftIO.Exception (Exception)
 import Network.CANOpen.SDO
 import Network.CANOpen.Serialize (CSerialize)
-import Network.CANOpen.Types (NodeID, Variable)
+import Network.CANOpen.Types (Array(..), NodeID, Variable)
 import Network.CAN (CANArbitrationField, CANMessage)
 import Network.CAN.Class (MonadCAN)
 
 import Network.CANOpen.NMT.Types (NMTState)
+
+import qualified Control.Monad
 
 data SDOClient = SDOClient
   { sdoClientAsync :: Async ()
@@ -59,6 +61,41 @@ class Monad m => MonadNode m where
     => Variable a
     -> a
     -> m ()
+
+  sdoReadArray
+    :: CSerialize a
+    => Array a
+    -> m [a]
+  sdoReadArray Array{..} = do
+    count <- sdoRead arrayCount
+    Control.Monad.forM
+      [1..fromIntegral count]
+      $ sdoRead . arrayElem
+
+  sdoWriteArray
+    :: CSerialize a
+    => Array a
+    -> [a]
+    -> m ()
+  sdoWriteArray Array{..} items = do
+    -- Clear mapping by writing 0 count
+    sdoWrite
+      arrayCount
+      0
+
+    -- Write entries
+    Control.Monad.forM_
+      (zip [1..] items)
+      $ \(subIdx, item) ->
+          sdoWrite
+            (arrayElem subIdx)
+            item
+
+    -- Write new count
+    sdoWrite
+      arrayCount
+      $ fromIntegral
+      $ length items
 
 data CANOpenException
   = CANOpenException_SDOUploadTimeout NodeID

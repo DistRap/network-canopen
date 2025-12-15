@@ -112,45 +112,6 @@ instance MonadIO m => MonadNode (ReaderT Node m) where
   sdoRead = sdoRead'
   sdoWrite = sdoWrite'
 
-sdoReadArray
-  :: ( MonadNode m
-     , CSerialize a
-     )
-  => Array a
-  -> m [a]
-sdoReadArray Array{..} = do
-  count <- sdoRead arrayCount
-  Control.Monad.forM
-    [1..fromIntegral count]
-    $ sdoRead . arrayElem
-
-sdoWriteArray
-  :: ( MonadNode m
-     , CSerialize a
-     )
-  => Array a
-  -> [a]
-  -> m ()
-sdoWriteArray Array{..} items = do
-  -- Clear mapping by writing 0 count
-  sdoWrite
-    arrayCount
-    0
-
-  -- Write entries
-  Control.Monad.forM_
-    (zip [1..] items)
-    $ \(subIdx, item) ->
-        sdoWrite
-          (arrayElem subIdx)
-          item
-
-  -- Write new count
-  sdoWrite
-    arrayCount
-    $ fromIntegral
-    $ length items
-
 -- | Create and register a SDO client
 -- for given @NodeID@
 newSDOClient
