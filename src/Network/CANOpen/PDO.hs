@@ -155,14 +155,14 @@ mkDictionary =
 -- which can be constructed using @mkDictionary@ from
 -- a predefined PDO mapping, for example:
 --
--- > tPDOMap :: [SomeFixedSized Variable]
--- > tPDOMap =
+-- > rPDOMap :: [SomeFixedSized Variable]
+-- > rPDOMap =
 -- >   [ SomeFixedSized controlWord
 -- >   , SomeFixedSized targetPosition
 -- >   ]
 -- >
--- > rPDOMap :: [SomeFixedSized Variable]
--- > rPDOMap =
+-- > tPDOMap :: [SomeFixedSized Variable]
+-- > tPDOMap =
 -- >   [ SomeFixedSized statusWord
 -- >   , SomeFixedSized positionActual
 -- >   ]
