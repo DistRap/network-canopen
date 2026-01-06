@@ -10,6 +10,8 @@ module Network.CANOpen.PDO
   , writePDOMap
   , readPDOMapEntries
   , mkDictionary
+  , PDOMapping(..)
+  , writePDOMapping
   , readPDOMap
   ) where
 
@@ -143,6 +145,25 @@ readPDOMapEntries
   => PDO n
   -> m [PDOMapEntry]
 readPDOMapEntries = sdoReadArray . pdoMapArray
+
+data PDOMapping = PDOMapping
+  { pdoMappingReceive  :: [SomeFixedSized Variable]
+  , pdoMappingTransmit :: [SomeFixedSized Variable]
+  } deriving (Show)
+
+-- | Write @PDOMapping@ to nodes RPDO1/TPDO1 variables
+writePDOMapping
+  :: MonadNode m
+  => PDOMapping
+  -> m ()
+writePDOMapping PDOMapping{..} = do
+  writePDOMap
+    rpdo1
+    pdoMappingReceive
+
+  writePDOMap
+    tpdo1
+    pdoMappingTransmit
 
 mkDictionary
   :: [SomeFixedSized Variable]
