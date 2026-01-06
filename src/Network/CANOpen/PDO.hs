@@ -9,9 +9,10 @@ module Network.CANOpen.PDO
   , pdoMapSize
   , writePDOMap
   , readPDOMapEntries
-  , mkDictionary
   , PDOMapping(..)
   , writePDOMapping
+  , mkDictionary
+  , pdoMappingToDictionary
   , readPDOMap
   ) where
 
@@ -172,26 +173,32 @@ mkDictionary =
     Data.Map.Strict.fromList
   . map (\s@(SomeFixedSized v) -> (variableMux v, s))
 
--- Read typed PDO mapping, requires supplying a dictionary
--- which can be constructed using @mkDictionary@ from
--- a predefined PDO mapping, for example:
+pdoMappingToDictionary
+  :: PDOMapping
+  -> Map Mux (SomeFixedSized Variable)
+pdoMappingToDictionary PDOMapping{..} =
+  mkDictionary
+    $ pdoMappingReceive ++ pdoMappingTransmit
+
+-- | Read typed PDO mapping, requires supplying a dictionary
+-- which can be constructed using @mkDictionary@
+-- or @pdoMappingToDictionary@ from a predefined PDO mapping,
+-- for example:
 --
--- > rPDOMap :: [SomeFixedSized Variable]
--- > rPDOMap =
--- >   [ SomeFixedSized controlWord
--- >   , SomeFixedSized targetPosition
--- >   ]
+-- > pdoMapping :: PDOMapping
+-- > pdoMapping = PDOMapping
+-- >   { pdoMappingReceive =
+-- >       [ SomeFixedSized controlWord
+-- >       , SomeFixedSized targetPosition
+-- >       ]
+-- >   , pdoMappingTransmit =
+-- >       [ SomeFixedSized statusWord
+-- >       , SomeFixedSized positionActual
+-- >       ]
+-- >   }
 -- >
--- > tPDOMap :: [SomeFixedSized Variable]
--- > tPDOMap =
--- >   [ SomeFixedSized statusWord
--- >   , SomeFixedSized positionActual
--- >   ]
--- >
--- > dictionary
--- >   :: Map Mux (SomeFixedSized Variable)
--- > dictionary =
--- >   mkDictionary $ rPDOMap ++ tPDOMap
+-- > readPDOMap
+-- >   $ pdoMappingToDictionary pdoMapping
 readPDOMap
   :: ( KnownNat n
      , MonadNode m
