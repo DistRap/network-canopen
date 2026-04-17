@@ -1,7 +1,7 @@
 module Network.CANOpen.SDO where
 
 import Data.Word (Word8)
-import Network.CAN (MonadCAN(..), CANArbitrationField, CANMessage(..))
+import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
 import Network.CANOpen.SDO.Types (SDOInit(..), SDORequest(..), SDOReply(..))
 import Network.CANOpen.Types (NodeID(..), Mux(..))
 
@@ -26,16 +26,17 @@ data SDOClientDownload = SDOClientDownload
 
 -- aka read (upload) from device
 sdoClientUpload
-  :: MonadCAN m
-  => NodeID
+  :: Monad m
+  => CANEndpoint m
+  -> NodeID
   -> Mux
   -> m [Word8]
-sdoClientUpload nID mux = do
+sdoClientUpload can nID mux = do
   let
-    sendReq = send . sdoRequest nID
+    sendReq = canEndpointSend can . sdoRequest nID
 
   sendReq $ SDORequestUploadInit mux
-  msg@CANMessage{..} <- recv
+  msg@CANMessage{..} <- canEndpointRecv can
   case sdoReply nID msg of
     Left e -> error e
     Right SDOReplyUploadInit{..} -> do
@@ -59,12 +60,13 @@ sdoClientUpload nID mux = do
 
 -- aka write (download) to device
 sdoClientDownload
-  :: MonadCAN m
-  => NodeID
+  :: Monad m
+  => CANEndpoint m
+  -> NodeID
   -> Mux
   -> [Word8]
   -> m ()
-sdoClientDownload nID mux bytes = do
+sdoClientDownload can nID mux bytes = do
   let
     header =
       SDOInit
@@ -73,7 +75,8 @@ sdoClientDownload nID mux bytes = do
       , sdoInitSizeIndicated = True
       }
 
-  send
+  canEndpointSend
+    can
     $ CANMessage
         (sdoRequestID nID)
         $ (Network.CANOpen.Serialize.runPut
@@ -81,7 +84,7 @@ sdoClientDownload nID mux bytes = do
           )
           ++ bytes
 
-  sdoReply nID <$> recv
+  sdoReply nID <$> canEndpointRecv can
   >>= \case
     Left e -> error e
     Right SDOReplyDownloadInit{..} -> do

@@ -1,11 +1,17 @@
-{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Network.CANOpen.SDOClient where
 
-import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.Reader (MonadReader, ask)
+import Control.Concurrent.Class.MonadSTM.TMVar
+import Control.Monad
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Class.MonadAsync
+import Control.Monad.Class.MonadFork (MonadFork)
+import Control.Monad.Class.MonadTimer (MonadTimer(timeout))
+import Control.Monad.Class.MonadThrow (MonadMask, MonadThrow(throwIO))
+import Control.Monad.Class.MonadSTM
+import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
-import UnliftIO (MonadUnliftIO)
 
 import Network.CAN
 import Network.CANOpen.Class
@@ -15,27 +21,19 @@ import Network.CANOpen.SDO
 import qualified Network.CANOpen.Serialize
 import qualified Network.CANOpen.SubBus
 
-import Control.Concurrent.STM (atomically, orElse)
-import Control.Concurrent.STM.TMVar
-import qualified Control.Monad
-import qualified UnliftIO.Async
-import qualified UnliftIO.Exception
-import qualified UnliftIO.Timeout
-
 -- | Read SDO variable
 --
 -- Sends SDOClientUpload, waits for reply
 -- and returns deserialized value
 sdoReadNode
   :: ( CSerialize a
-     , MonadIO m
+     , MonadSTM m
      )
-  => Node
+  => Node m
   -> Variable a
   -> m a
 sdoReadNode node var = do
-  liftIO
-    $ atomically
+  atomically
     $ putTMVar
         (sdoClientUpload' (nodeSDOClient node))
         $ SDOClientUpload
@@ -44,8 +42,7 @@ sdoReadNode node var = do
             }
 
   rep <-
-    liftIO
-    $ atomically
+    atomically
     $ takeTMVar
     $ sdoClientUploadReply
     $ nodeSDOClient node
@@ -58,15 +55,14 @@ sdoReadNode node var = do
 -- | Write SDO variable
 sdoWriteNode
   :: ( CSerialize a
-     , MonadIO m
+     , MonadSTM m
      )
-  => Node
+  => Node m
   -> Variable a
   -> a
   -> m ()
 sdoWriteNode node var val = do
-  liftIO
-    $ atomically
+  atomically
     $ putTMVar
         (sdoClientDownload' (nodeSDOClient node))
         $ SDOClientDownload
@@ -74,8 +70,7 @@ sdoWriteNode node var val = do
             , sdoClientDownloadMux = variableMux var
             , sdoClientDownloadBytes = Network.CANOpen.Serialize.runPut val
             }
-  Control.Monad.void
-    $ liftIO
+  void
     $ atomically
     $ takeTMVar
     $ sdoClientDownloadReply
@@ -84,83 +79,71 @@ sdoWriteNode node var val = do
 -- Variants using MonadReader
 
 withNode
-  :: Node
-  -> ReaderT Node m a
+  :: Node m
+  -> ReaderT (Node m) m a
   -> m a
 withNode = flip runReaderT
 
-sdoRead'
-  :: ( CSerialize a
-     , MonadIO m
-     , MonadReader Node m
-     )
-  => Variable a
-  -> m a
-sdoRead' var = ask >>= \node -> sdoReadNode node var
+instance MonadSTM m => MonadNode (ReaderT (Node m) m) where
+  sdoRead var = ask >>= \node -> lift $ sdoReadNode node var
+  sdoWrite var val = ask >>= \node -> lift $ sdoWriteNode node var val
 
-sdoWrite'
-  :: ( CSerialize a
-     , MonadIO m
-     , MonadReader Node m
-     )
-  => Variable a
-  -> a
-  -> m ()
-sdoWrite' var val = ask >>= \node -> sdoWriteNode node var val
-
-instance MonadIO m => MonadNode (ReaderT Node m) where
-  sdoRead = sdoRead'
-  sdoWrite = sdoWrite'
 
 -- | Create and register a SDO client
 -- for given @NodeID@
 newSDOClient
-  :: ( MonadIO m
-     , MonadCAN m
-     , MonadCANOpen m
-     , MonadUnliftIO m
+  :: ( MonadAsync m
+     , MonadFork m
+     , MonadSTM m
+     , MonadMask m
+     , MonadTimer m
+     , MonadThrow m
      )
-  => NodeID
-  -> m SDOClient
-newSDOClient nID = do
+  -- TODO: pass subBus to newSDOClient instead of passing main bus
+  -- and building subBus here
+  => CANEndpoint m
+  -> CANOpen m
+  -> NodeID
+  -> m (SDOClient m)
+newSDOClient can canOpen nID = do
   (subBusTMVar, sdoUp, sdoUpReply, sdoDown, sdoDownReply)
-    <- liftIO
-      $ (,,,,) <$> newEmptyTMVarIO
-               <*> newEmptyTMVarIO
-               <*> newEmptyTMVarIO
-               <*> newEmptyTMVarIO
-               <*> newEmptyTMVarIO
+    <- atomically $
+       (,,,,) <$> newEmptyTMVar
+              <*> newEmptyTMVar
+              <*> newEmptyTMVar
+              <*> newEmptyTMVar
+              <*> newEmptyTMVar
 
-  registerHandler
+  canOpenRegisterHandler
+    canOpen
     (sdoReplyID nID)
     (atomically . putTMVar subBusTMVar)
 
   sdoClientAsync <-
-    UnliftIO.Async.async $ do
-      Network.CANOpen.SubBus.runSubBus subBusTMVar $ do
-        Control.Monad.forever $ do
+    async $ do
+      Network.CANOpen.SubBus.withSubBus can subBusTMVar $ \subCan -> do
+        forever $ do
           cmd <-
-            liftIO
-              . atomically
+            atomically
               $ (Left <$> readTMVar sdoUp)
                 `orElse`
                 (Right <$> readTMVar sdoDown)
 
           case cmd of
             Left SDOClientUpload{..} -> do
-              UnliftIO.Timeout.timeout
+              timeout
                 1_000_000
                 $ sdoClientUpload
+                    subCan
                     sdoClientUploadNodeID
                     sdoClientUploadMux
               >>= \case
                 Nothing ->
-                  UnliftIO.Exception.throwIO
+                  throwIO
                     $ CANOpenException_SDOUploadTimeout
                         sdoClientUploadNodeID
                 Just raw ->
-                  liftIO
-                    . atomically
+                  atomically
                     $ do
                         Control.Monad.void
                           $ takeTMVar sdoUp
@@ -169,27 +152,27 @@ newSDOClient nID = do
                           $ SDOClientUploadReply raw
 
             Right SDOClientDownload{..} -> do
-              UnliftIO.Timeout.timeout
+              timeout
                 1_000_000
                 $ sdoClientDownload
+                    subCan
                     sdoClientDownloadNodeID
                     sdoClientDownloadMux
                     sdoClientDownloadBytes
               >>= \case
                 Nothing ->
-                  UnliftIO.Exception.throwIO
+                  throwIO
                     $ CANOpenException_SDODownloadTimeout
                         sdoClientDownloadNodeID
                 _ -> do
-                  liftIO
-                    . atomically
+                  atomically
                     $ do
                         _ <- takeTMVar sdoDown
                         writeTMVar
                           sdoDownReply
                           True
 
-  UnliftIO.Async.link sdoClientAsync
+  link sdoClientAsync
   pure $
     SDOClient
     { sdoClientAsync = sdoClientAsync
@@ -198,5 +181,5 @@ newSDOClient nID = do
     , sdoClientDownload' = sdoDown
     , sdoClientDownloadReply = sdoDownReply
     }
-
-
+{--
+--}

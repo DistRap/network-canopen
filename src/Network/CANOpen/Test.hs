@@ -1,4 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
 module Network.CANOpen.Test where
 
 import Control.Concurrent
@@ -92,10 +91,10 @@ main = do
         threadDelay 1000000
   --}
 
-  runSocketCAN (mkCANInterface "vcan0") $ do
-    void $ runCANOpen $ do
-      io <- addNode (NodeID 1)
-      vcb <- addNode (NodeID 2)
+  runSocketCAN (mkCANInterface "vcan0") $ \can ->
+    void $ runCANOpen can $ \CANOpen{..} -> do
+      io <- canOpenAddNode (NodeID 1)
+      vcb <- canOpenAddNode (NodeID 2)
       let
         outWrite :: MonadNode m => Word8 -> m ()
         outWrite = sdoWrite ioOutput
@@ -159,7 +158,7 @@ main = do
       --  inquireNodeID >>= l
 
       when doLSS $ do
-        configNodeID nID >>= l
-        inquireNodeID >>= l
-        storeConfig >>= l
+        configNodeID can nID >>= l
+        inquireNodeID can >>= l
+        storeConfig can >>= l
       --recv >>= l

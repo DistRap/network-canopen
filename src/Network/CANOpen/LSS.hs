@@ -3,7 +3,7 @@ module Network.CANOpen.LSS where
 
 import Control.Lens (Prism')
 import Data.Word (Word32)
-import Network.CAN (MonadCAN(..), CANArbitrationField, CANMessage(..))
+import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
 import Network.CANOpen.LSS.Types
   ( LSSMode
   , LSSRequest(..)
@@ -22,20 +22,21 @@ import qualified Network.CANOpen.Serialize
 Control.Lens.TH.makePrisms ''LSSReply
 
 lssReq
-  :: MonadCAN m
-  => [LSSRequest]
+  :: Monad m
+  => CANEndpoint m
+  -> [LSSRequest]
   -> Prism' LSSReply a
   -> m a
-lssReq reqs respLens = do
+lssReq can reqs respLens = do
   let
-    sendReq = send . lssRequest
+    sendReq = canEndpointSend can . lssRequest
 
   Control.Monad.mapM_ sendReq reqs
 
   -- TODO: timeout
   -- for example when there's no unconfed device
   -- identifyNonConfigured would just hang now
-  lssReply <$> recv
+  lssReply <$> canEndpointRecv can
   >>= \case
     Left e -> error e
     Right lssResp ->
@@ -44,50 +45,61 @@ lssReq reqs respLens = do
         Nothing -> error $ "Wrong lss reply" <> show lssResp
 
 switchModeGlobal
-  :: MonadCAN m
-  => LSSMode
+  :: Monad m
+  => CANEndpoint m
+  -> LSSMode
   -> m ()
-switchModeGlobal =
-  send . lssRequest . LSSRequest_SwitchGlobal
+switchModeGlobal can =
+  canEndpointSend can . lssRequest . LSSRequest_SwitchGlobal
 
 configNodeID
-  :: MonadCAN m
-  => NodeID
+  :: Monad m
+  => CANEndpoint m
+  -> NodeID
   -> m LSSConfigNodeIDStatus
-configNodeID nID =
+configNodeID can nID =
   lssReq
+    can
     (pure $ LSSRequest_ConfigNodeID nID)
     _LSSReply_ConfigNodeID
 
 storeConfig
-  :: MonadCAN m
-  => m LSSStoreConfigStatus
-storeConfig =
+  :: Monad m
+  => CANEndpoint m
+  -> m LSSStoreConfigStatus
+storeConfig can =
   lssReq
+    can
     (pure LSSRequest_StoreConfig)
     _LSSReply_StoreConfig
 
 inquireVendor
-  :: MonadCAN m
-  => m Word32
-inquireVendor =
+  :: Monad m
+  => CANEndpoint m
+  -> m Word32
+inquireVendor can =
   lssReq
+    can
     (pure LSSRequest_InquireVendor)
     _LSSReply_InquireVendor
 
 inquireNodeID
-  :: MonadCAN m
-  => m NodeID
-inquireNodeID =
+  :: Monad m
+  => CANEndpoint m
+  -> m NodeID
+inquireNodeID can =
   lssReq
+    can
     (pure LSSRequest_InquireNodeID)
     _LSSReply_InquireNodeID
 
 identifyNonConfigured
-  :: MonadCAN m
-  => m ()
-identifyNonConfigured =
+  :: Monad m
+  => CANEndpoint m
+  -> m ()
+identifyNonConfigured can =
   lssReq
+    can
     (pure LSSRequest_IdentifyNonConfigured)
     _LSSReply_IdentifyNonConfigured
 

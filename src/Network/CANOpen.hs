@@ -1,43 +1,33 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- due to MonadUnliftIO (ExceptT e m) instance
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.CANOpen where
 
-import Control.Monad ((<=<), forever, forM_, void, when)
-import Control.Monad.Except (MonadError)
-import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.Reader (MonadReader, ask, asks)
-import Control.Monad.Trans (MonadTrans, lift)
-import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
-import Control.Monad.Trans.Reader (ReaderT, runReaderT)
+import Control.Concurrent.Class.MonadSTM.TVar
+
+import Control.Monad (forever, forM_, void, when)
+import Control.Monad.Class.MonadAsync
+import Control.Monad.Class.MonadFork (MonadFork)
+import Control.Monad.Class.MonadTimer (MonadTimer)
+import Control.Monad.Class.MonadThrow (MonadCatch, MonadMask)
+-- , MonadThrow)
+-- import Control.Monad.Class.MonadSTM (MonadSTM)
+import Control.Monad.Class.MonadSay (MonadSay (say))
+import Control.Monad.Class.MonadSTM (MonadSTM(atomically))
 import Data.Map (Map)
-import Network.CAN (CANArbitrationField, CANMessage(..))
-import Network.CAN.Class
+import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
 import Network.CANOpen.Class
 import Network.CANOpen.NMT.Types (NMTState(..))
 import Network.CANOpen.SDOClient
 import Network.CANOpen.Types (NodeID)
-import UnliftIO (Exception, MonadUnliftIO)
-
-import Control.Concurrent.STM -- (TVar, TQueue)
 
 import qualified Data.Map
 import qualified Network.CANOpen.NMT.Types
-import qualified UnliftIO
-import qualified UnliftIO.Async
 
-instance (MonadUnliftIO m, Exception e) => MonadUnliftIO (ExceptT e m) where
-    withRunInIO exceptToIO = ExceptT $ UnliftIO.try $ do
-        UnliftIO.withRunInIO $ \runInIO ->
-            exceptToIO (runInIO . (either UnliftIO.throwIO pure <=< runExceptT))
-
-data CANOpenState = CANOpenState
-  { canOpenStateNodes :: TVar (Map NodeID Node)
-  , canOpenStateHandlers :: TVar (Map CANArbitrationField (CANMessage -> IO ()))
+data CANOpenState m = CANOpenState
+  { canOpenStateNodes :: TVar m (Map NodeID (Node m))
+  , canOpenStateHandlers :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
   }
 
 newCANOpenState
-  :: IO CANOpenState
+  :: MonadSTM m => m (CANOpenState m)
 newCANOpenState = do
   nodes <- newTVarIO mempty
   handlers <- newTVarIO mempty
@@ -47,109 +37,75 @@ newCANOpenState = do
     , canOpenStateHandlers = handlers
     }
 
-data CANOpenError = CANOpenError_Whatever
-  deriving Show
-
-instance Exception CANOpenError
-
-newtype CANOpenT m a = CANOpenT
-  { _unCANOpenT
-      :: ExceptT CANOpenError
-          (ReaderT CANOpenState m) a
-  }
-  deriving
-    ( Functor
-    , Applicative
-    , Monad
-    , MonadCAN
-    , MonadReader CANOpenState
-    , MonadError CANOpenError
-    , MonadIO
-    , MonadUnliftIO
-    )
-
-instance MonadTrans CANOpenT where
-  lift = CANOpenT . lift . lift
-
--- | Run CANOpenT transformer
-runCANOpenT
-  :: Monad m
-  => CANOpenState
-  -> CANOpenT m a
-  -> m (Either CANOpenError a)
-runCANOpenT s =
-    (`runReaderT` s)
-  . runExceptT
-  . _unCANOpenT
-
 -- | Run CANOpen application
 runCANOpen
-  :: ( MonadCAN m
-     , MonadIO m
-     , MonadUnliftIO m
+  :: ( MonadAsync m
+     , MonadCatch m
+     , MonadFork m
+     , MonadMask m
+     , MonadSay m
+     , MonadSTM m
+     , MonadTimer m
      )
-  => CANOpenT m a
-  -> m (Either CANOpenError a)
-runCANOpen app = do
-  cs <- liftIO $ newCANOpenState
-  runCANOpenT cs $ do
-    -- incoming message router
-    void $ UnliftIO.Async.async $ do
-      forever $ do
-        msg@CANMessage{..} <- recv
-        handlers <-
-          asks canOpenStateHandlers
-          >>= liftIO . readTVarIO
-        forM_
-          (Data.Map.toList handlers)
-          (\(arb, handler) ->
-            when
-              (arb == canMessageArbitrationField)
-              $ liftIO
-              $ handler msg
-          )
-    app
+  => CANEndpoint m
+  -> (CANOpen m -> m a)
+  -> m a
+-- TODO: with
+runCANOpen can app = do
+  handlersVar <- newTVarIO mempty
+  -- :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
+  nodesVar <- newTVarIO mempty
+  -- :: TVar m (Map NodeID (Node m))
+
+  -- incoming message router
+  void $ async $ do
+    forever $ do
+      msg@CANMessage{..} <- canEndpointRecv can
+      handlers <- readTVarIO handlersVar
+      forM_
+        (Data.Map.toList handlers)
+        (\(arb, handler) ->
+          when
+            (arb == canMessageArbitrationField)
+            $ handler msg
+        )
+  let
+    addNode nId = do
+      sdoClient <- newSDOClient can canOpen nId
+
+      nState <- newTVarIO NMTState_Initialising
+      let
+        newNode =
+          Node
+          { nodeID = nId
+          , nodeNMTState = nState
+          , nodeSDOClient = sdoClient
+          }
+
+      atomically
+        $ modifyTVar
+            nodesVar
+            (Data.Map.insert nId newNode)
+
+      registerHandler
+        (Network.CANOpen.NMT.Types.nodeHeartbeatID nId)
+        (say . show)
+
+      pure newNode
+
+    registerHandler cID handler = do
+      atomically
+        $ modifyTVar
+            handlersVar
+            (Data.Map.insert cID handler)
+
+    canOpen = CANOpen
+        { canOpenAddNode = addNode
+        , canOpenRegisterHandler = registerHandler
+        }
+
+  app canOpen
 
 --setOperational = undefined
 --sdoWrite = undefined
 --sdoRead = undefined
-
-instance
-  ( MonadCAN m
-  , MonadIO m
-  , MonadUnliftIO m
-  ) => MonadCANOpen (CANOpenT m)
-  where
-
-  addNode nID = do
-    sdoClient <- newSDOClient nID
-
-    nState <- liftIO $ newTVarIO NMTState_Initialising
-    let
-      newNode =
-        Node
-        { nodeID = nID
-        , nodeNMTState = nState
-        , nodeSDOClient = sdoClient
-        }
-
-    ts <- ask
-    liftIO
-      $ atomically
-      $ modifyTVar
-          (canOpenStateNodes ts)
-          (Data.Map.insert nID newNode)
-
-    registerHandler
-      (Network.CANOpen.NMT.Types.nodeHeartbeatID nID)
-      (liftIO . print)
-
-    pure newNode
-
-  registerHandler cID handler = do
-    ts <- ask
-    liftIO
-      $ atomically
-      $ modifyTVar
-          (canOpenStateHandlers ts)
-          (Data.Map.insert cID handler)

@@ -1,54 +1,53 @@
 module Network.CANOpen.Class
-  ( SDOClient(..)
+  ( CANOpen(..)
+  , SDOClient(..)
   , Node(..)
-  , MonadCANOpen(..)
   , MonadNode(..)
   , CANOpenException(..)
   )
   where
 
-import Control.Concurrent.STM (TVar, TMVar)
-import UnliftIO.Async (Async)
-import UnliftIO.Exception (Exception)
+import Control.Concurrent.Class.MonadSTM.TVar (TVar)
+import Control.Concurrent.Class.MonadSTM.TMVar (TMVar)
+import Control.Monad.Class.MonadAsync
+import Control.Monad.Class.MonadThrow (Exception)
+
 import Network.CANOpen.SDO
 import Network.CANOpen.Serialize (CSerialize)
 import Network.CANOpen.Types (Array(..), NodeID, Variable)
 import Network.CAN (CANArbitrationField, CANMessage)
-import Network.CAN.Class (MonadCAN)
 
 import Network.CANOpen.NMT.Types (NMTState)
 
-import qualified Control.Monad
-
-data SDOClient = SDOClient
-  { sdoClientAsync :: Async ()
-  , sdoClientUpload' :: TMVar SDOClientUpload
-  , sdoClientUploadReply :: TMVar SDOClientUploadReply
-  , sdoClientDownload' :: TMVar SDOClientDownload
-  , sdoClientDownloadReply :: TMVar Bool
+data SDOClient m = SDOClient
+  { sdoClientAsync         :: Async m ()
+  , sdoClientUpload'       :: TMVar m SDOClientUpload
+  , sdoClientUploadReply   :: TMVar m SDOClientUploadReply
+  , sdoClientDownload'     :: TMVar m SDOClientDownload
+  , sdoClientDownloadReply :: TMVar m Bool
   }
 
-data Node = Node
+data Node m = Node
   { nodeID :: NodeID
-  , nodeNMTState :: TVar NMTState
-  , nodeSDOClient :: SDOClient
+  , nodeNMTState :: TVar m NMTState
+  , nodeSDOClient :: SDOClient m
   }
 
-instance Eq Node where
+instance Eq (Node m) where
   (==) a b = nodeID a == nodeID b
 
-instance Show Node where
+instance Show (Node m) where
   show = ("CANOpen node ID "++) . show . nodeID
 
-class MonadCAN m => MonadCANOpen m where
-  addNode
-    :: NodeID
-    -> m Node
-
-  registerHandler
-    :: CANArbitrationField
-    -> (CANMessage -> IO ())
-    -> m ()
+data CANOpen m = CANOpen
+  { canOpenAddNode
+      :: NodeID
+      -> m (Node m)
+  , canOpenRegisterHandler
+      :: CANArbitrationField
+      -> (CANMessage -> m ())
+      -> m ()
+  }
 
 class Monad m => MonadNode m where
   sdoRead
