@@ -1,64 +1,49 @@
-{-# LANGUAGE GeneralisedNewtypeDeriving #-}
-{-# LANGUAGE Rank2Types #-}
 module Util
   ( TestBusState(..)
-  , TestBus(..)
-  , runTestBus
-  , testBus
+  , withTestBus
   , busResult
   , roundtrips
   ) where
 
-import Control.Monad.State (MonadState, State, gets, modify, runState)
+import Control.Monad.State (State, gets, modify, runState)
 
-import Network.CAN (MonadCAN(..), CANMessage)
+import Network.CAN (CANMessage, CANEndpoint(..))
 import Test.Hspec (Expectation, shouldBe)
 
 -- * TestBus
 
 data TestBusState = TestBusState
-  { testBusStateToSend :: [CANMessage]
+  { testBusStateToSend   :: [CANMessage]
   , testBusStateReceived :: [CANMessage]
   } deriving (Eq, Ord, Show)
 
-newtype TestBus a = TestBus { unTestBus :: State TestBusState a }
-  deriving ( Applicative
-           , Functor
-           , Monad
-           , MonadState TestBusState
-           )
-
-instance MonadCAN TestBus where
-  send msg = do
-    modify
-      (\x -> x { testBusStateReceived = testBusStateReceived x ++ [msg] })
-
-  recv = do
-    msgs <- gets testBusStateToSend
-    case msgs of
-      (x:xs) -> do
-        modify
-          (\s -> s { testBusStateToSend = xs })
-        pure x
-      _ -> error "TestBus: No more messages to send"
-
-runTestBus
-  :: TestBusState
-  -> TestBus a
-  -> (a, TestBusState)
-runTestBus s =
-  (`runState` s)
-  . unTestBus
-
-testBus
+withTestBus
   :: [CANMessage]
-  -> TestBus a
+  -> (CANEndpoint (State TestBusState) -> State TestBusState a)
   -> (a, TestBusState)
-testBus toSend =
-  runTestBus
-    TestBusState
-      { testBusStateToSend = toSend
-      , testBusStateReceived = mempty
+withTestBus toSend act =
+  runState (act testBusEndpoint) initialState
+  where
+    initialState =
+      TestBusState
+        { testBusStateToSend = toSend
+        , testBusStateReceived = mempty
+        }
+
+    testBusEndpoint :: CANEndpoint (State TestBusState)
+    testBusEndpoint = CANEndpoint
+      { canEndpointSend = \msg ->
+          modify (\x ->
+            x { testBusStateReceived = testBusStateReceived x ++ [msg] })
+
+      , canEndpointRecv = do
+          msgs <- gets testBusStateToSend
+          case msgs of
+            (x:xs) -> do
+              modify (\s -> s { testBusStateToSend = xs })
+              pure x
+            [] ->
+              error "TestBus: No more messages to send"
       }
 
 busResult
