@@ -64,15 +64,12 @@ library
                      , bytestring
                      , containers
                      , cereal
-                     , data-default-class
-                     , generic-arbitrary
                      , QuickCheck
                      , io-classes
                      , lens
                      , mtl
                      , network-can
                      , network-can:socketcan
-                     , stm
                      , transformers
 
   default-language:    Haskell2010
@@ -102,7 +99,6 @@ test-suite pure
                      , mtl
                      , network-can
                      , network-canopen
-                     , transformers
   default-language:    Haskell2010
 
 source-repository head
