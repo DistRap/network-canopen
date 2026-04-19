@@ -10,7 +10,6 @@ import Data.Int (Int32)
 import Network.CANOpen
 import Network.CANOpen.Class
 import Network.CANOpen.LSS
-import Network.CANOpen.SDOClient
 import Network.CANOpen.Types
 --import Network.CANOpen.LSS.Types
 import Network.SocketCAN
@@ -77,40 +76,40 @@ main = do
       vcb <- canOpenAddNode (NodeID 2)
       let
         outWrite :: CNode m -> Word8 -> m ()
-        outWrite CNode{..} = cNodeSDOWrite ioOutput
+        outWrite c = cNodeSDOWrite c ioOutput
 
-      withCNode io $ \CNode{..} ->
-        cNodeSDORead
-          ioOutput
-          >>= l
+      cNodeSDORead
+        io
+        ioOutput
+        >>= l
 
-      withCNode vcb $ \CNode{..} -> do
-        cNodeSDORead
-          ioOutput
-          >>= l
+      cNodeSDORead
+        vcb
+        ioOutput
+        >>= l
 
-        cNodeSDOWrite
-          gauge3enable
-          True
+      cNodeSDOWrite
+        vcb
+        gauge3enable
+        True
 
       -- release some pressure
       forM_ [0, 3, 0] $ \x -> do
-        withCNode vcb $ flip outWrite x
+        outWrite vcb x
         liftIO $ threadDelay 2_000_000
 
       forM_ [0..1000] $ \(_ :: Int) -> do
-        withCNode vcb $ \CNode{..} ->
-          cNodeSDORead
-            gauge3actual
-          >>= l
+        cNodeSDORead
+          vcb
+          gauge3actual
+        >>= l
 
-      withCNode vcb $ \cNode -> do
-        cNodeSDOWrite
-          cNode
-          gauge3enable
-          False
+      cNodeSDOWrite
+        vcb
+        gauge3enable
+        False
 
-        outWrite cNode 0
+      outWrite vcb 0
 
       --forever $ do
       --  switchModeGlobal LSSMode_Operation

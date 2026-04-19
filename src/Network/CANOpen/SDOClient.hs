@@ -26,15 +26,16 @@ sdoReadNode
   :: ( CSerialize a
      , MonadSTM m
      )
-  => Node m
+  => NodeID
+  -> SDOClient m
   -> Variable a
   -> m a
-sdoReadNode node var = do
+sdoReadNode nodeId sdoClient var = do
   atomically
     $ putTMVar
-        (sdoClientUpload' (nodeSDOClient node))
+        (sdoClientUpload' sdoClient)
         $ SDOClientUpload
-            { sdoClientUploadNodeID = nodeID node
+            { sdoClientUploadNodeID = nodeId
             , sdoClientUploadMux = variableMux var
             }
 
@@ -42,7 +43,7 @@ sdoReadNode node var = do
     atomically
     $ takeTMVar
     $ sdoClientUploadReply
-    $ nodeSDOClient node
+    $ sdoClient
 
   pure
     $ either (error "Deserialize fail") id
@@ -54,16 +55,17 @@ sdoWriteNode
   :: ( CSerialize a
      , MonadSTM m
      )
-  => Node m
+  => NodeID
+  -> SDOClient m
   -> Variable a
   -> a
   -> m ()
-sdoWriteNode node var val = do
+sdoWriteNode nodeId sdoClient var val = do
   atomically
     $ putTMVar
-        (sdoClientDownload' (nodeSDOClient node))
+        (sdoClientDownload' sdoClient)
         $ SDOClientDownload
-            { sdoClientDownloadNodeID = nodeID node
+            { sdoClientDownloadNodeID = nodeId
             , sdoClientDownloadMux = variableMux var
             , sdoClientDownloadBytes = Network.CANOpen.Serialize.runPut val
             }
@@ -71,21 +73,60 @@ sdoWriteNode node var val = do
     $ atomically
     $ takeTMVar
     $ sdoClientDownloadReply
-    $ nodeSDOClient node
+    $ sdoClient
 
--- Variants using MonadReader
-
-withCNode
+mkCNode
   :: MonadSTM m
-  => Node m
-  -> (CNode m -> m a)
-  -> m a
-withCNode node act =
-  act
-    $ CNode
-        { cNodeSDORead = sdoReadNode node
-        , cNodeSDOWrite = sdoWriteNode node
-        }
+  => NodeID
+  -> SDOClient m
+  -> CNode m
+mkCNode nodeId sdoClient =
+  CNode
+    { cNodeId = nodeId
+    , cNodeSDORead = sdoReadNode nodeId sdoClient
+    , cNodeSDOWrite = sdoWriteNode nodeId sdoClient
+    }
+
+sdoReadArray
+  :: ( CSerialize a
+     , Monad m
+     )
+  => CNode m
+  -> Array a
+  -> m [a]
+sdoReadArray CNode{..} Array{..} = do
+  count <- cNodeSDORead arrayCount
+  Control.Monad.forM
+    [1..fromIntegral count]
+    $ cNodeSDORead . arrayElem
+
+sdoWriteArray
+  :: ( CSerialize a
+     , Monad m
+     )
+  => CNode m
+  -> Array a
+  -> [a]
+  -> m ()
+sdoWriteArray CNode{..} Array{..} items = do
+  -- Clear mapping by writing 0 count
+  cNodeSDOWrite
+    arrayCount
+    0
+
+  -- Write entries
+  Control.Monad.forM_
+    (zip [1..] items)
+    $ \(subIdx, item) ->
+        cNodeSDOWrite
+          (arrayElem subIdx)
+          item
+
+  -- Write new count
+  cNodeSDOWrite
+    arrayCount
+    $ fromIntegral
+    $ length items
 
 -- | Create and register a SDO client
 -- for given @NodeID@
@@ -179,5 +220,3 @@ newSDOClient can canOpen nID = do
     , sdoClientDownload' = sdoDown
     , sdoClientDownloadReply = sdoDownReply
     }
-{--
---}

@@ -7,14 +7,11 @@ import Control.Monad.Class.MonadAsync
 import Control.Monad.Class.MonadFork (MonadFork)
 import Control.Monad.Class.MonadTimer (MonadTimer)
 import Control.Monad.Class.MonadThrow (MonadCatch, MonadMask)
--- , MonadThrow)
--- import Control.Monad.Class.MonadSTM (MonadSTM)
 import Control.Monad.Class.MonadSay (MonadSay (say))
 import Control.Monad.Class.MonadSTM (MonadSTM(atomically))
 import Data.Map (Map)
 import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
 import Network.CANOpen.Class
-import Network.CANOpen.NMT.Types (NMTState(..))
 import Network.CANOpen.SDOClient
 import Network.CANOpen.Types (NodeID)
 
@@ -22,7 +19,7 @@ import qualified Data.Map
 import qualified Network.CANOpen.NMT.Types
 
 data CANOpenState m = CANOpenState
-  { canOpenStateNodes :: TVar m (Map NodeID (Node m))
+  { canOpenStateNodes :: TVar m (Map NodeID (CNode m))
   , canOpenStateHandlers :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
   }
 
@@ -56,7 +53,7 @@ runCANOpen can app = do
     :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
     <- newTVarIO mempty
   nodesVar
-    :: TVar m (Map NodeID (Node m))
+    :: TVar m (Map NodeID (CNode m))
     <- newTVarIO mempty
 
   -- incoming message router
@@ -75,14 +72,11 @@ runCANOpen can app = do
     addNode nId = do
       sdoClient <- newSDOClient can canOpen nId
 
-      nState <- newTVarIO NMTState_Initialising
       let
         newNode =
-          Node
-          { nodeID = nId
-          , nodeNMTState = nState
-          , nodeSDOClient = sdoClient
-          }
+          mkCNode
+            nId
+            sdoClient
 
       atomically
         $ modifyTVar
@@ -107,7 +101,3 @@ runCANOpen can app = do
         }
 
   app canOpen
-
---setOperational = undefined
---sdoWrite = undefined
---sdoRead = undefined
