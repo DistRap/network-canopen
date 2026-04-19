@@ -52,10 +52,12 @@ runCANOpen
   -> m a
 -- TODO: with
 runCANOpen can app = do
-  handlersVar <- newTVarIO mempty
-  -- :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
-  nodesVar <- newTVarIO mempty
-  -- :: TVar m (Map NodeID (Node m))
+  handlersVar
+    :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
+    <- newTVarIO mempty
+  nodesVar
+    :: TVar m (Map NodeID (Node m))
+    <- newTVarIO mempty
 
   -- incoming message router
   void $ async $ do

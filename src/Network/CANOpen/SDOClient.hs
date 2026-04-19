@@ -4,14 +4,11 @@ module Network.CANOpen.SDOClient where
 
 import Control.Concurrent.Class.MonadSTM.TMVar
 import Control.Monad
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Class.MonadAsync
 import Control.Monad.Class.MonadFork (MonadFork)
 import Control.Monad.Class.MonadTimer (MonadTimer(timeout))
 import Control.Monad.Class.MonadThrow (MonadMask, MonadThrow(throwIO))
 import Control.Monad.Class.MonadSTM
-import Control.Monad.Reader (ask)
-import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 
 import Network.CAN
 import Network.CANOpen.Class
@@ -78,16 +75,17 @@ sdoWriteNode node var val = do
 
 -- Variants using MonadReader
 
-withNode
-  :: Node m
-  -> ReaderT (Node m) m a
+withCNode
+  :: MonadSTM m
+  => Node m
+  -> (CNode m -> m a)
   -> m a
-withNode = flip runReaderT
-
-instance MonadSTM m => MonadNode (ReaderT (Node m) m) where
-  sdoRead var = ask >>= \node -> lift $ sdoReadNode node var
-  sdoWrite var val = ask >>= \node -> lift $ sdoWriteNode node var val
-
+withCNode node act =
+  act
+    $ CNode
+        { cNodeSDORead = sdoReadNode node
+        , cNodeSDOWrite = sdoWriteNode node
+        }
 
 -- | Create and register a SDO client
 -- for given @NodeID@

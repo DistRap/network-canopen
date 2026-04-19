@@ -2,7 +2,7 @@ module Network.CANOpen.Class
   ( CANOpen(..)
   , SDOClient(..)
   , Node(..)
-  , MonadNode(..)
+  , CNode(..)
   , CANOpenException(..)
   )
   where
@@ -49,17 +49,19 @@ data CANOpen m = CANOpen
       -> m ()
   }
 
-class Monad m => MonadNode m where
-  sdoRead
-    :: CSerialize a
-    => Variable a
-    -> m a
-
-  sdoWrite
-    :: CSerialize a
-    => Variable a
-    -> a
-    -> m ()
+data CNode m = CNode
+  { cNodeSDORead
+      :: forall a
+       . CSerialize a
+      => Variable a
+      -> m a
+  , cNodeSDOWrite
+      :: forall a
+       . CSerialize a
+      => Variable a
+      -> a
+      -> m ()
+  }
 
   sdoReadArray
     :: CSerialize a

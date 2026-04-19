@@ -71,84 +71,46 @@ main = do
 
     doLSS = not True -- False
 
-  {--
-  UnliftIO.Async.async $ do
-    forever $ do
-      sdoRead
-        sdoClient
-        nID
-        ioOutput
-        >>= l
-
-      threadDelay 1000000
-
-      forM_ [0, 1, 2, 4, 8] $ \x -> do
-        sdoWrite
-          sdoClient
-          nID
-          ioOutput
-          x
-        threadDelay 1000000
-  --}
-
   runSocketCAN (mkCANInterface "vcan0") $ \can ->
     void $ runCANOpen can $ \CANOpen{..} -> do
       io <- canOpenAddNode (NodeID 1)
       vcb <- canOpenAddNode (NodeID 2)
       let
-        outWrite :: MonadNode m => Word8 -> m ()
-        outWrite = sdoWrite ioOutput
+        outWrite :: CNode m -> Word8 -> m ()
+        outWrite CNode{..} = cNodeSDOWrite ioOutput
 
-      withNode io $
-        sdoRead
+      withCNode io $ \CNode{..} ->
+        cNodeSDORead
           ioOutput
           >>= l
 
-      withNode vcb $ do
-        sdoRead
+      withCNode vcb $ \CNode{..} -> do
+        cNodeSDORead
           ioOutput
           >>= l
 
-        sdoWrite
+        cNodeSDOWrite
           gauge3enable
           True
 
-      -- release some
+      -- release some pressure
       forM_ [0, 3, 0] $ \x -> do
-        withNode vcb $ outWrite x
+        withCNode vcb $ flip outWrite x
         liftIO $ threadDelay 2_000_000
 
       forM_ [0..1000] $ \(_ :: Int) -> do
-        withNode vcb $
-          sdoRead
+        withCNode vcb $ \CNode{..} ->
+          cNodeSDORead
             gauge3actual
           >>= l
 
-      withNode vcb $ do
-        sdoWrite
+      withCNode vcb $ \cNode -> do
+        cNodeSDOWrite
+          cNode
           gauge3enable
           False
 
-        outWrite 0
-
-      {--
-      forM_ [0, 1, 2, 4, 8, 0] $ \x -> do
-        ioOutWrite x
-        liftIO $ threadDelay 500_000
-      --}
-
-      -- #1 turbo pump vent
-      -- #2 fat vent
-      {--
-      forM_ [0, 1, 0, 2, 0] $ \x -> do
-        vcbOutWrite x
-        liftIO $ threadDelay 1_000_000
-      --}
-      {--
-      forM_ (take 20 $ cycle [0, 2]) $ \x -> do
-        vcbOutWrite x
-        liftIO $ threadDelay 500_000
-      --}
+        outWrite cNode 0
 
       --forever $ do
       --  switchModeGlobal LSSMode_Operation
