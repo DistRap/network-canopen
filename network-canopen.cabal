@@ -44,7 +44,7 @@ library
   import:              commons
   hs-source-dirs:      src
   exposed-modules:     Network.CANOpen
-                       Network.CANOpen.Class
+                       Network.CANOpen.API
                        Network.CANOpen.FixedSize
                        Network.CANOpen.Serialize
                        Network.CANOpen.Types

@@ -11,7 +11,7 @@ import Control.Monad.Class.MonadSay (MonadSay (say))
 import Control.Monad.Class.MonadSTM (MonadSTM(atomically))
 import Data.Map (Map)
 import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
-import Network.CANOpen.Class
+import Network.CANOpen.API
 import Network.CANOpen.SDOClient
 import Network.CANOpen.Types (NodeID)
 

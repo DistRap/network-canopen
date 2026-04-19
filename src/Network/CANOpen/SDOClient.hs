@@ -11,7 +11,7 @@ import Control.Monad.Class.MonadThrow (MonadMask, MonadThrow(throwIO))
 import Control.Monad.Class.MonadSTM
 
 import Network.CAN
-import Network.CANOpen.Class
+import Network.CANOpen.API
 import Network.CANOpen.Serialize (CSerialize(..))
 import Network.CANOpen.Types
 import Network.CANOpen.SDO

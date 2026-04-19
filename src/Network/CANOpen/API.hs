@@ -1,4 +1,4 @@
-module Network.CANOpen.Class
+module Network.CANOpen.API
   ( CANOpen(..)
   , CNode(..)
   , CANOpenException(..)
