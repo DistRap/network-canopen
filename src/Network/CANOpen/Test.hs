@@ -122,4 +122,4 @@ main = do
         configNodeID can nID >>= l
         inquireNodeID can >>= l
         storeConfig can >>= l
-      --recv >>= l
+      --canEndpointRecv can >>= l

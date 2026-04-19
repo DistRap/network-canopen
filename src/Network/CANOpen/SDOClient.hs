@@ -15,8 +15,26 @@ import Network.CANOpen.Class
 import Network.CANOpen.Serialize (CSerialize(..))
 import Network.CANOpen.Types
 import Network.CANOpen.SDO
+  ( SDOClientUpload(..)
+  , SDOClientUploadReply(..)
+  , SDOClientDownload(..)
+  )
+import qualified Network.CANOpen.SDO
 import qualified Network.CANOpen.Serialize
 import qualified Network.CANOpen.SubBus
+
+data SDOClient m = SDOClient
+  { sdoClientAsync         :: Async m ()
+  -- ^ SDO Client thread
+  , sdoClientUpload        :: TMVar m SDOClientUpload
+  -- ^ Upload requests
+  , sdoClientUploadReply   :: TMVar m SDOClientUploadReply
+  -- ^ Upload replies
+  , sdoClientDownload      :: TMVar m SDOClientDownload
+  -- ^ Download requests
+  , sdoClientDownloadReply :: TMVar m Bool
+  -- ^ Download replies / acks
+  }
 
 -- | Read SDO variable
 --
@@ -33,7 +51,7 @@ sdoReadNode
 sdoReadNode nodeId sdoClient var = do
   atomically
     $ putTMVar
-        (sdoClientUpload' sdoClient)
+        (sdoClientUpload sdoClient)
         $ SDOClientUpload
             { sdoClientUploadNodeID = nodeId
             , sdoClientUploadMux = variableMux var
@@ -63,7 +81,7 @@ sdoWriteNode
 sdoWriteNode nodeId sdoClient var val = do
   atomically
     $ putTMVar
-        (sdoClientDownload' sdoClient)
+        (sdoClientDownload sdoClient)
         $ SDOClientDownload
             { sdoClientDownloadNodeID = nodeId
             , sdoClientDownloadMux = variableMux var
@@ -138,8 +156,6 @@ newSDOClient
      , MonadTimer m
      , MonadThrow m
      )
-  -- TODO: pass subBus to newSDOClient instead of passing main bus
-  -- and building subBus here
   => CANEndpoint m
   -> CANOpen m
   -> NodeID
@@ -155,7 +171,7 @@ newSDOClient can canOpen nID = do
 
   canOpenRegisterHandler
     canOpen
-    (sdoReplyID nID)
+    (Network.CANOpen.SDO.sdoReplyID nID)
     (atomically . putTMVar subBusTMVar)
 
   sdoClientAsync <-
@@ -172,7 +188,7 @@ newSDOClient can canOpen nID = do
             Left SDOClientUpload{..} -> do
               timeout
                 1_000_000
-                $ sdoClientUpload
+                $ Network.CANOpen.SDO.sdoClientUpload
                     subCan
                     sdoClientUploadNodeID
                     sdoClientUploadMux
@@ -193,7 +209,7 @@ newSDOClient can canOpen nID = do
             Right SDOClientDownload{..} -> do
               timeout
                 1_000_000
-                $ sdoClientDownload
+                $ Network.CANOpen.SDO.sdoClientDownload
                     subCan
                     sdoClientDownloadNodeID
                     sdoClientDownloadMux
@@ -214,9 +230,9 @@ newSDOClient can canOpen nID = do
   link sdoClientAsync
   pure $
     SDOClient
-    { sdoClientAsync = sdoClientAsync
-    , sdoClientUpload' = sdoUp
-    , sdoClientUploadReply = sdoUpReply
-    , sdoClientDownload' = sdoDown
-    , sdoClientDownloadReply = sdoDownReply
-    }
+      { sdoClientAsync         = sdoClientAsync
+      , sdoClientUpload        = sdoUp
+      , sdoClientUploadReply   = sdoUpReply
+      , sdoClientDownload      = sdoDown
+      , sdoClientDownloadReply = sdoDownReply
+      }
