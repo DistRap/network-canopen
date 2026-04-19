@@ -11,7 +11,6 @@ import Network.CANOpen
 import Network.CANOpen.Class
 import Network.CANOpen.LSS
 import Network.CANOpen.Types
---import Network.CANOpen.LSS.Types
 import Network.SocketCAN
 
 nID :: NodeID
@@ -70,8 +69,8 @@ main = do
 
     doLSS = not True -- False
 
-  runSocketCAN (mkCANInterface "vcan0") $ \can ->
-    void $ runCANOpen can $ \CANOpen{..} -> do
+  withSocketCAN (mkCANInterface "vcan0") $ \can ->
+    withCANOpen can $ \CANOpen{..} -> do
       io <- canOpenAddNode (NodeID 1)
       vcb <- canOpenAddNode (NodeID 2)
       let

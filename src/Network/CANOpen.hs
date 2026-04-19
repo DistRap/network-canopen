@@ -35,7 +35,7 @@ newCANOpenState = do
     }
 
 -- | Run CANOpen application
-runCANOpen
+withCANOpen
   :: ( MonadAsync m
      , MonadCatch m
      , MonadFork m
@@ -47,8 +47,7 @@ runCANOpen
   => CANEndpoint m
   -> (CANOpen m -> m a)
   -> m a
--- TODO: with
-runCANOpen can app = do
+withCANOpen can app = do
   handlersVar
     :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
     <- newTVarIO mempty
