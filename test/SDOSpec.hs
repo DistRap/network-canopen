@@ -32,3 +32,21 @@ spec = do
             [0x40, 0x13, 0x42, 0x1, 0, 0, 0, 0]
         ]
       )
+    it "Writes Word16" $
+      (withTestBus
+        [
+          CANMessage
+            (sdoReplyID n1)
+            [0x60, 0x13, 0x42, 0x1]
+        ]
+        $ \bus -> sdoClientDownload bus n1 (Mux 0x4213 1) [0x13, 0x37]
+
+      )
+      `shouldReturnInSim`
+      ( ()
+      , okBusResult
+        [ CANMessage
+            (sdoRequestID n1)
+            [0x2B, 0x13, 0x42, 0x1, 0x13, 0x37]
+        ]
+      )
