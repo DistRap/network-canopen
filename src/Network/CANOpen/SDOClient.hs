@@ -43,6 +43,7 @@ data SDOClient m = SDOClient
 sdoReadNode
   :: ( CSerialize a
      , MonadSTM m
+     , MonadThrow m
      )
   => NodeID
   -> SDOClient m
@@ -94,7 +95,9 @@ sdoWriteNode nodeId sdoClient var val = do
     $ sdoClient
 
 mkCNode
-  :: MonadSTM m
+  :: ( MonadSTM m
+     , MonadThrow m
+     )
   => NodeID
   -> SDOClient m
   -> CNode m

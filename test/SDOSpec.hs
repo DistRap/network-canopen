@@ -1,13 +1,12 @@
 module SDOSpec (spec) where
 
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, it)
 
 import Network.CAN
 import Network.CANOpen.Types (NodeID(..), Mux(..))
 import Network.CANOpen.SDO
---import Network.CANOpen.SDO.Types (SDORequest, SDOReply)
 
-import Util (busResult, withTestBus)
+import Util (okBusResult, withTestBus, shouldReturnInSim)
 
 n1 :: NodeID
 n1 = NodeID 1
@@ -23,10 +22,11 @@ spec = do
             [0x4F, 0x13, 0x42, 0x1, 0x3, 0x7, 0x0, 0x0]
         ]
         $ \bus -> sdoClientUpload bus n1 (Mux 0x4213 1)
+
       )
-      `shouldBe`
+      `shouldReturnInSim`
       ( [0x3]
-      , busResult
+      , okBusResult
         [ CANMessage
             (sdoRequestID n1)
             [0x40, 0x13, 0x42, 0x1, 0, 0, 0, 0]

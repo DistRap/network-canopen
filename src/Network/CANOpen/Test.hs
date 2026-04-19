@@ -23,6 +23,11 @@ vendorID = Variable
   , variablePerm = Permission_Read
   }
 
+readVendorID :: CNode m -> m Word32
+readVendorID cn = cNodeSDORead cn vendorID
+writeVendorID :: Monad m => CNode m -> Word32 -> m ()
+writeVendorID cn = cNodeSDOWrite cn vendorID
+
 -- cia401 outputs
 ioOutput :: Variable Word8
 ioOutput = Variable

@@ -93,7 +93,8 @@ test-suite pure
   build-depends:       base >= 4.7 && < 5
                      , cereal
                      , hspec
-                     , mtl
+                     , io-classes
+                     , io-sim
                      , network-can
                      , network-canopen
   default-language:    Haskell2010

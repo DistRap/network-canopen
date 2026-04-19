@@ -1,5 +1,6 @@
 module Network.CANOpen.SDO where
 
+import Control.Monad.Class.MonadThrow (Exception(..), MonadThrow(throwIO))
 import Data.Word (Word8)
 import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
 import Network.CANOpen.SDO.Types (SDOInit(..), SDORequest(..), SDOReply(..))
@@ -24,25 +25,84 @@ data SDOClientDownload = SDOClientDownload
   , sdoClientDownloadBytes :: [Word8]
   } deriving (Eq, Show)
 
+data SDOException
+  = SDOException_Read SDOExceptionDetail
+  | SDOException_Write SDOExceptionDetail
+  deriving (Eq, Show)
+
+data SDOExceptionDetail
+  = SDOExceptionDetail_SDOReplyBadID CANArbitrationField CANArbitrationField
+  | SDOExceptionDetail_SDOReplyDeserialize String
+  | SDOExceptionDetail_MuxMismatch Mux Mux
+  | SDOExceptionDetail_UnexpectedSDOReply String SDOReply
+  | SDOExceptionDetail_GetBytesNonExpedited String
+  | SDOExceptionDetail_VariableLengthDataDeserialize String String String
+  | SDOExceptionDetail_VariableDataDeserialize String String String
+  | SDOExceptionDetail_ExpeditedNoSizeIndicated
+  | SDOExceptionDetail_UnsupportedSegmentedTransfer
+    deriving (Eq, Show)
+
+instance Exception SDOException where
+  displayException = \case
+    SDOException_Read d -> "sdoReadNode: " <> displayDetail d
+    SDOException_Write d -> "sdoWriteNode: " <> displayDetail d
+
+    where
+      displayDetail = \case
+        SDOExceptionDetail_SDOReplyBadID expected actual ->
+          "Unexpected CAN ID of SDOReply, expecting " <> show expected <> " but got " <> show actual
+        SDOExceptionDetail_SDOReplyDeserialize e ->
+          "Can't deserialize SDOReply " <> e
+        SDOExceptionDetail_MuxMismatch expected actual ->
+          "Mux mismatch, expected " <> show expected <> " but got " <> show actual
+        SDOExceptionDetail_UnexpectedSDOReply expected actual ->
+          "Unexpected SDOReply, expecting " <> expected <> " but got " <> show actual
+        SDOExceptionDetail_GetBytesNonExpedited e ->
+          "Unable to getBytes following size (non-expedited transfer) " <> e
+        SDOExceptionDetail_VariableLengthDataDeserialize e var raw ->
+          "Unable to deserialize length-variable data "
+           <> e <> " while reading " <> var <> " from bytes " <> raw
+        SDOExceptionDetail_VariableDataDeserialize e var raw ->
+          "Unable to deserialize variable data "
+           <> e <> " while reading " <> var <> " from bytes " <> raw
+        SDOExceptionDetail_ExpeditedNoSizeIndicated ->
+          "Expedited transfer but no size indicated"
+        SDOExceptionDetail_UnsupportedSegmentedTransfer ->
+          "Segmented transfer not supported"
+
 -- aka read (upload) from device
 sdoClientUpload
-  :: Monad m
+  :: MonadThrow m
   => CANEndpoint m
   -> NodeID
   -> Mux
   -> m [Word8]
 sdoClientUpload can nID mux = do
-  let
-    sendReq = canEndpointSend can . sdoRequest nID
+  canEndpointSend can
+    $ CANMessage
+        (sdoRequestID nID)
+        $ Network.CANOpen.Serialize.pad 8
+        $ Network.CANOpen.Serialize.runPut
+        $ SDORequestUploadInit mux
 
-  sendReq $ SDORequestUploadInit mux
-  msg@CANMessage{..} <- canEndpointRecv can
-  case sdoReply nID msg of
+  msg <- canEndpointRecv can
+
+  Control.Monad.unless
+    (canMessageArbitrationField msg == sdoReplyID nID)
+    $ throw
+        $ SDOExceptionDetail_SDOReplyBadID
+            (sdoReplyID nID)
+            (canMessageArbitrationField msg)
+
+  case Network.CANOpen.Serialize.runGet (canMessageData msg) of
     Left e -> error e
     Right SDOReplyUploadInit{..} -> do
       Control.Monad.unless
         (sdoReplyUploadInitMux == mux)
-        $ error "MuxMismatch"
+        $ throw
+            $ SDOExceptionDetail_MuxMismatch
+                mux
+                sdoReplyUploadInitMux
 
       let SDOInit{..} = sdoReplyUploadInitHeader
       case sdoInitExpedited of
@@ -52,15 +112,17 @@ sdoClientUpload can nID mux = do
               let dataLength = 4 - (fromIntegral sdoInitNumBytes)
               pure
                 $ take dataLength
-                $ drop 4 canMessageData
+                $ drop 4 (canMessageData msg)
 
-            False -> error "Expedited but no size indicated"
-        False -> error "TODO Segmented"
-    Right _ -> error "Expected SDOReplyUploadInit"
+            False -> throw SDOExceptionDetail_ExpeditedNoSizeIndicated
+        False -> throw SDOExceptionDetail_UnsupportedSegmentedTransfer
+    Right other -> throw $ SDOExceptionDetail_UnexpectedSDOReply "SDOReplyUploadInit" other
+  where
+    throw = throwIO . SDOException_Read
 
 -- aka write (download) to device
 sdoClientDownload
-  :: Monad m
+  :: MonadThrow m
   => CANEndpoint m
   -> NodeID
   -> Mux
@@ -84,39 +146,29 @@ sdoClientDownload can nID mux bytes = do
           )
           ++ bytes
 
-  sdoReply nID <$> canEndpointRecv can
-  >>= \case
+  msg <- canEndpointRecv can
+
+  Control.Monad.unless
+    (canMessageArbitrationField msg == sdoReplyID nID)
+    $ throw
+        $ SDOExceptionDetail_SDOReplyBadID
+            (sdoReplyID nID)
+            (canMessageArbitrationField msg)
+
+  case Network.CANOpen.Serialize.runGet (canMessageData msg) of
     Left e -> error e
     Right SDOReplyDownloadInit{..} -> do
       Control.Monad.unless
         (sdoReplyDownloadInitMux == mux)
-        $ error "MuxMismatch"
+        $ throw
+            $ SDOExceptionDetail_MuxMismatch
+                mux
+                sdoReplyDownloadInitMux
 
       pure ()
-    Right _ -> error "Expected SDOReplyDownloadInit"
-
-sdoRequest
-  :: NodeID
-  -> SDORequest
-  -> CANMessage
-sdoRequest nID req =
-  CANMessage
-    (sdoRequestID nID)
-    $ Network.CANOpen.Serialize.pad 8
-    $ Network.CANOpen.Serialize.runPut req
-
-sdoReply
-  :: NodeID
-  -> CANMessage
-  -> Either String SDOReply
-sdoReply nID (CANMessage rxid dat) | rxid == sdoReplyID nID =
-  Network.CANOpen.Serialize.runGet dat
-sdoReply nID (CANMessage rxid _dat) | otherwise =
-  Left
-    $     "Expected SDO RX ID "
-       <> show (sdoReplyID nID)
-       <> ", but got "
-       <> show rxid
+    Right other -> throw $ SDOExceptionDetail_UnexpectedSDOReply "SDOReplyDownloadInit" other
+  where
+    throw = throwIO . SDOException_Read
 
 sdoRequestID
   :: NodeID
@@ -129,4 +181,3 @@ sdoReplyID
   -> CANArbitrationField
 sdoReplyID (NodeID i) =
   Network.CAN.standardID (0x580 + fromIntegral i)
-

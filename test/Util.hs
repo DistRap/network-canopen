@@ -1,59 +1,98 @@
 module Util
-  ( TestBusState(..)
+  ( TestBusResult(..)
   , withTestBus
-  , busResult
+  , okBusResult
+  , shouldReturnInSim
   , roundtrips
   ) where
 
-import Control.Monad.State (State, gets, modify, runState)
+import Control.Concurrent.Class.MonadSTM.TQueue (newTQueue, tryReadTQueue, flushTQueue, writeTQueue, labelTQueue)
+import Control.Monad
+import Control.Monad.Class.MonadThrow (Exception, MonadThrow(throwIO))
+import Control.Monad.Class.MonadSTM (MonadSTM(atomically), MonadLabelledSTM)
+import Control.Monad.IOSim
 
 import Network.CAN (CANMessage, CANEndpoint(..))
-import Test.Hspec (Expectation, shouldBe)
+import Test.Hspec (Expectation , HasCallStack, expectationFailure, shouldBe)
 
 -- * TestBus
 
-data TestBusState = TestBusState
-  { testBusStateToSend   :: [CANMessage]
-  , testBusStateReceived :: [CANMessage]
+data TestBusResult = TestBusResult
+  { testBusResultNotSent  :: [CANMessage]
+  , testBusResultReceived :: [CANMessage]
   } deriving (Eq, Ord, Show)
 
+data TestBusException
+  = TestBusException_NothingMoreToSend
+  deriving Show
+
+instance Exception TestBusException
+
 withTestBus
-  :: [CANMessage]
-  -> (CANEndpoint (State TestBusState) -> State TestBusState a)
-  -> (a, TestBusState)
-withTestBus toSend act =
-  runState (act testBusEndpoint) initialState
-  where
-    initialState =
-      TestBusState
-        { testBusStateToSend = toSend
-        , testBusStateReceived = mempty
+  :: ( MonadThrow m
+     , MonadLabelledSTM m
+     )
+  => [CANMessage]
+  -> (CANEndpoint m -> m a)
+  -> m (a, TestBusResult)
+withTestBus toSend act = do
+  (sendQueue, recvQueue) <- atomically $ do
+    sQ <- newTQueue
+    labelTQueue sQ "sendQueue"
+    forM_ toSend $ writeTQueue sQ
+
+    rQ <- newTQueue
+    labelTQueue rQ "recvQueue"
+    pure (sQ, rQ)
+
+  x <-
+    act
+      $ CANEndpoint
+        { canEndpointSend = atomically . writeTQueue recvQueue
+        , canEndpointRecv =
+            atomically
+              (tryReadTQueue sendQueue)
+            >>= \case
+              Nothing -> throwIO TestBusException_NothingMoreToSend
+              Just x -> pure x
         }
 
-    testBusEndpoint :: CANEndpoint (State TestBusState)
-    testBusEndpoint = CANEndpoint
-      { canEndpointSend = \msg ->
-          modify (\x ->
-            x { testBusStateReceived = testBusStateReceived x ++ [msg] })
+  busRes <-
+    atomically
+      $ TestBusResult
+          <$> flushTQueue sendQueue
+          <*> flushTQueue recvQueue
 
-      , canEndpointRecv = do
-          msgs <- gets testBusStateToSend
-          case msgs of
-            (x:xs) -> do
-              modify (\s -> s { testBusStateToSend = xs })
-              pure x
-            [] ->
-              error "TestBus: No more messages to send"
-      }
+  pure (x, busRes)
 
-busResult
+okBusResult
   :: [CANMessage]
-  -> TestBusState
-busResult xs =
-  TestBusState
-    { testBusStateToSend = mempty
-    , testBusStateReceived = xs
+  -> TestBusResult
+okBusResult xs =
+  TestBusResult
+    { testBusResultNotSent  = mempty
+    , testBusResultReceived = xs
     }
+
+-- | Run action in IOSim, compare result
+-- if it passes, render simulation trace
+-- if not.
+shouldReturnInSim
+  :: (HasCallStack, Show a, Eq a)
+  => (forall s. IOSim s a)
+  -> a
+  -> Expectation
+shouldReturnInSim action expected =
+  let
+    tr = runSimTrace action
+  in
+    case traceResult True tr of
+      Right r -> r `shouldBe` expected
+      Left e ->
+        expectationFailure
+          $    show e
+            <> "\n"
+            <> ppTrace tr
 
 --
 
