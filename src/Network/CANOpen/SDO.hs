@@ -2,7 +2,7 @@ module Network.CANOpen.SDO where
 
 import Control.Monad.Class.MonadThrow (Exception(..), MonadThrow(throwIO))
 import Data.Word (Word8)
-import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
+import Network.CAN (CANArbitrationField, CANMessage(..), CAN(..))
 import Network.CANOpen.SDO.Types (SDOInit(..), SDORequest(..), SDOReply(..))
 import Network.CANOpen.Types (NodeID(..), Mux(..))
 
@@ -73,19 +73,19 @@ instance Exception SDOException where
 -- aka read (upload) from device
 sdoClientUpload
   :: MonadThrow m
-  => CANEndpoint m
+  => CAN m
   -> NodeID
   -> Mux
   -> m [Word8]
 sdoClientUpload can nID mux = do
-  canEndpointSend can
+  canSend can
     $ CANMessage
         (sdoRequestID nID)
         $ Network.CANOpen.Serialize.pad 8
         $ Network.CANOpen.Serialize.runPut
         $ SDORequestUploadInit mux
 
-  msg <- canEndpointRecv can
+  msg <- canRecv can
 
   Control.Monad.unless
     (canMessageArbitrationField msg == sdoReplyID nID)
@@ -123,7 +123,7 @@ sdoClientUpload can nID mux = do
 -- aka write (download) to device
 sdoClientDownload
   :: MonadThrow m
-  => CANEndpoint m
+  => CAN m
   -> NodeID
   -> Mux
   -> [Word8]
@@ -137,7 +137,7 @@ sdoClientDownload can nID mux bytes = do
       , sdoInitSizeIndicated = True
       }
 
-  canEndpointSend
+  canSend
     can
     $ CANMessage
         (sdoRequestID nID)
@@ -146,7 +146,7 @@ sdoClientDownload can nID mux bytes = do
           )
           ++ bytes
 
-  msg <- canEndpointRecv can
+  msg <- canRecv can
 
   Control.Monad.unless
     (canMessageArbitrationField msg == sdoReplyID nID)

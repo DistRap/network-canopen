@@ -3,7 +3,7 @@ module Network.CANOpen.LSS where
 
 import Control.Lens (Prism')
 import Data.Word (Word32)
-import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
+import Network.CAN (CANArbitrationField, CANMessage(..), CAN(..))
 import Network.CANOpen.LSS.Types
   ( LSSMode
   , LSSRequest(..)
@@ -23,20 +23,20 @@ Control.Lens.TH.makePrisms ''LSSReply
 
 lssReq
   :: Monad m
-  => CANEndpoint m
+  => CAN m
   -> [LSSRequest]
   -> Prism' LSSReply a
   -> m a
 lssReq can reqs respLens = do
   let
-    sendReq = canEndpointSend can . lssRequest
+    sendReq = canSend can . lssRequest
 
   Control.Monad.mapM_ sendReq reqs
 
   -- TODO: timeout
   -- for example when there's no unconfed device
   -- identifyNonConfigured would just hang now
-  lssReply <$> canEndpointRecv can
+  lssReply <$> canRecv can
   >>= \case
     Left e -> error e
     Right lssResp ->
@@ -46,15 +46,15 @@ lssReq can reqs respLens = do
 
 switchModeGlobal
   :: Monad m
-  => CANEndpoint m
+  => CAN m
   -> LSSMode
   -> m ()
 switchModeGlobal can =
-  canEndpointSend can . lssRequest . LSSRequest_SwitchGlobal
+  canSend can . lssRequest . LSSRequest_SwitchGlobal
 
 configNodeID
   :: Monad m
-  => CANEndpoint m
+  => CAN m
   -> NodeID
   -> m LSSConfigNodeIDStatus
 configNodeID can nID =
@@ -65,7 +65,7 @@ configNodeID can nID =
 
 storeConfig
   :: Monad m
-  => CANEndpoint m
+  => CAN m
   -> m LSSStoreConfigStatus
 storeConfig can =
   lssReq
@@ -75,7 +75,7 @@ storeConfig can =
 
 inquireVendor
   :: Monad m
-  => CANEndpoint m
+  => CAN m
   -> m Word32
 inquireVendor can =
   lssReq
@@ -85,7 +85,7 @@ inquireVendor can =
 
 inquireNodeID
   :: Monad m
-  => CANEndpoint m
+  => CAN m
   -> m NodeID
 inquireNodeID can =
   lssReq
@@ -95,7 +95,7 @@ inquireNodeID can =
 
 identifyNonConfigured
   :: Monad m
-  => CANEndpoint m
+  => CAN m
   -> m ()
 identifyNonConfigured can =
   lssReq

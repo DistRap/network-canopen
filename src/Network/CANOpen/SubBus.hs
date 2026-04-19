@@ -5,7 +5,7 @@ module Network.CANOpen.SubBus
 import Control.Monad.Class.MonadSTM
 import Control.Concurrent.Class.MonadSTM.TMVar
 
-import Network.CAN (CANMessage, CANEndpoint(..))
+import Network.CAN (CANMessage, CAN(..))
 
 -- | SubBus is used to run a nested
 -- client (like SDO client), sends are
@@ -19,13 +19,13 @@ import Network.CAN (CANMessage, CANEndpoint(..))
 
 withSubBus
   :: MonadSTM m
-  => CANEndpoint m
+  => CAN m
   -> TMVar m CANMessage
-  -> (CANEndpoint m -> m a)
+  -> (CAN m -> m a)
   -> m a
 withSubBus parentBus tmVar act =
   act
-    $ CANEndpoint
-        { canEndpointSend = canEndpointSend parentBus
-        , canEndpointRecv = atomically $ readTMVar tmVar
+    $ CAN
+        { canSend = canSend parentBus
+        , canRecv = atomically $ readTMVar tmVar
         }

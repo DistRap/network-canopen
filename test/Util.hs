@@ -12,7 +12,7 @@ import Control.Monad.Class.MonadThrow (Exception, MonadThrow(throwIO))
 import Control.Monad.Class.MonadSTM (MonadSTM(atomically), MonadLabelledSTM)
 import Control.Monad.IOSim
 
-import Network.CAN (CANMessage, CANEndpoint(..))
+import Network.CAN (CANMessage, CAN(..))
 import Test.Hspec (Expectation , HasCallStack, expectationFailure, shouldBe)
 
 -- * TestBus
@@ -33,7 +33,7 @@ withTestBus
      , MonadLabelledSTM m
      )
   => [CANMessage]
-  -> (CANEndpoint m -> m a)
+  -> (CAN m -> m a)
   -> m (a, TestBusResult)
 withTestBus toSend act = do
   (sendQueue, recvQueue) <- atomically $ do
@@ -47,9 +47,9 @@ withTestBus toSend act = do
 
   x <-
     act
-      $ CANEndpoint
-        { canEndpointSend = atomically . writeTQueue recvQueue
-        , canEndpointRecv =
+      $ CAN
+        { canSend = atomically . writeTQueue recvQueue
+        , canRecv =
             atomically
               (tryReadTQueue sendQueue)
             >>= \case

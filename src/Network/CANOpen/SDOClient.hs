@@ -159,7 +159,7 @@ newSDOClient
      , MonadTimer m
      , MonadThrow m
      )
-  => CANEndpoint m
+  => CAN m
   -> CANOpen m
   -> NodeID
   -> m (SDOClient m)

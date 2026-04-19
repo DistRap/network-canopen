@@ -10,7 +10,7 @@ import Control.Monad.Class.MonadThrow (MonadCatch, MonadMask)
 import Control.Monad.Class.MonadSay (MonadSay (say))
 import Control.Monad.Class.MonadSTM (MonadSTM(atomically))
 import Data.Map (Map)
-import Network.CAN (CANArbitrationField, CANMessage(..), CANEndpoint(..))
+import Network.CAN (CANArbitrationField, CANMessage(..), CAN(..))
 import Network.CANOpen.API
 import Network.CANOpen.SDOClient
 import Network.CANOpen.Types (NodeID)
@@ -44,7 +44,7 @@ withCANOpen
      , MonadSTM m
      , MonadTimer m
      )
-  => CANEndpoint m
+  => CAN m
   -> (CANOpen m -> m a)
   -> m a
 withCANOpen can app = do
@@ -58,13 +58,13 @@ withCANOpen can app = do
   -- incoming message router
   void $ async $ do
     forever $ do
-      msg@CANMessage{..} <- canEndpointRecv can
+      msg <- canRecv can
       handlers <- readTVarIO handlersVar
       forM_
         (Data.Map.toList handlers)
         (\(arb, handler) ->
           when
-            (arb == canMessageArbitrationField)
+            (arb == canMessageArbitrationField msg)
             $ handler msg
         )
   let
