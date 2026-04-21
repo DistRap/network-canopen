@@ -108,47 +108,6 @@ mkCNode nodeId sdoClient =
     , cNodeSDOWrite = sdoWriteNode nodeId sdoClient
     }
 
-sdoReadArray
-  :: ( CSerialize a
-     , Monad m
-     )
-  => CNode m
-  -> Array a
-  -> m [a]
-sdoReadArray CNode{..} Array{..} = do
-  count <- cNodeSDORead arrayCount
-  Control.Monad.forM
-    [1..fromIntegral count]
-    $ cNodeSDORead . arrayElem
-
-sdoWriteArray
-  :: ( CSerialize a
-     , Monad m
-     )
-  => CNode m
-  -> Array a
-  -> [a]
-  -> m ()
-sdoWriteArray CNode{..} Array{..} items = do
-  -- Clear mapping by writing 0 count
-  cNodeSDOWrite
-    arrayCount
-    0
-
-  -- Write entries
-  Control.Monad.forM_
-    (zip [1..] items)
-    $ \(subIdx, item) ->
-        cNodeSDOWrite
-          (arrayElem subIdx)
-          item
-
-  -- Write new count
-  cNodeSDOWrite
-    arrayCount
-    $ fromIntegral
-    $ length items
-
 -- | Create and register a SDO client
 -- for given @NodeID@
 newSDOClient

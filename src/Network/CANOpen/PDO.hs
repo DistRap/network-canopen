@@ -21,7 +21,7 @@ import Data.Word (Word8)
 import Data.Map (Map)
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
-import Network.CANOpen.Class (MonadNode(..))
+import Network.CANOpen.API (CNode, cNodeSDOReadArray, cNodeSDOWriteArray)
 import Network.CANOpen.Types
   ( Array(..)
   , Index(..)
@@ -122,13 +122,15 @@ pdoMapSize =
 
 writePDOMap
   :: ( KnownNat n
-     , MonadNode m
+     , Monad m
      )
-  => PDO n
+  => CNode m
+  -> PDO n
   -> [SomeFixedSized Variable]
   -> m ()
-writePDOMap pdo mappings = do
-  sdoWriteArray
+writePDOMap cn pdo mappings = do
+  cNodeSDOWriteArray
+    cn
     (pdoMapArray pdo)
     $ map asEntry mappings
   where
@@ -141,11 +143,12 @@ writePDOMap pdo mappings = do
 
 readPDOMapEntries
   :: ( KnownNat n
-     , MonadNode m
+     , Monad m
      )
-  => PDO n
+  => CNode m
+  -> PDO n
   -> m [PDOMapEntry]
-readPDOMapEntries = sdoReadArray . pdoMapArray
+readPDOMapEntries cn = cNodeSDOReadArray cn . pdoMapArray
 
 data PDOMapping = PDOMapping
   { pdoMappingReceive  :: [SomeFixedSized Variable]
@@ -154,15 +157,16 @@ data PDOMapping = PDOMapping
 
 -- | Write @PDOMapping@ to nodes RPDO1/TPDO1 variables
 writePDOMapping
-  :: MonadNode m
-  => PDOMapping
+  :: Monad m
+  => CNode m
+  -> PDOMapping
   -> m ()
-writePDOMapping PDOMapping{..} = do
-  writePDOMap
+writePDOMapping cn PDOMapping{..} = do
+  writePDOMap cn
     rpdo1
     pdoMappingReceive
 
-  writePDOMap
+  writePDOMap cn
     tpdo1
     pdoMappingTransmit
 
@@ -201,15 +205,16 @@ pdoMappingToDictionary PDOMapping{..} =
 -- >   $ pdoMappingToDictionary pdoMapping
 readPDOMap
   :: ( KnownNat n
-     , MonadNode m
+     , Monad m
      )
-  => PDO n
+  => CNode m
+  -> PDO n
   -> Map Mux (SomeFixedSized Variable)
   -> m [Maybe (SomeFixedSized Variable)]
-readPDOMap pdo dict = do
+readPDOMap cn pdo dict = do
   fmap
     (flip
       Data.Map.Strict.lookup
       dict
     . pdoMapEntryMux)
-  <$> readPDOMapEntries pdo
+  <$> readPDOMapEntries cn pdo

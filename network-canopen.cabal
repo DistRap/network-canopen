@@ -63,6 +63,7 @@ library
                      , bytestring
                      , containers
                      , cereal
+                     , generic-arbitrary
                      , QuickCheck
                      , io-classes
                      , lens
