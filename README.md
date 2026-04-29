@@ -8,18 +8,35 @@ Work-in-progress native CANOpen protocol master implementation.
 ## Usage
 
 ```haskell
+import Data.Word (Word8)
+import Network.CANOpen
+  ( CANOpen(..)
+  , CNode(..)
+  , Mux(..)
+  , NodeID(..)
+  , Permission(..)
+  , Variable(..)
+  )
+
 import qualified Network.CANOpen
+import qualified Network.SocketCAN
+
+outputs :: Variable Word8
+outputs =
+  Variable
+  { variableName = "Outputs"
+  , variableMux  = Mux 0x6000 1
+  , variablePerm = Permission_ReadWrite
+  }
 
 main :: IO ()
 main = do
-  runCANOpen <HOW> $ do
-    io <- addNode 1
-    forAllNodes waitBootup
-    forAllNodes setOperational
+  Network.SocketCAN.withSocketCAN (Network.SocketCAN.mkCANInterface "vcan0") $ \can ->
+    Network.CANOpen.withCANOpen can $ \CANOpen{..} -> do
 
-    let outputAddr = VariableAddress (Index 0x6000) (SubIndex 1)
+      io <- canOpenAddNode (NodeID 1)
 
-    sdoWrite io outputAddr 0b1
-    sdoRead io outputAddr
-      >>= liftIO . print
+      cNodeSDOWrite io outputs 0b1
+      cNodeSDORead io outputs
+      >>= putStrLn . show
 ```

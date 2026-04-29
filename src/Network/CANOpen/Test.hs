@@ -8,9 +8,7 @@ import Data.Word (Word8, Word32)
 import Data.Int (Int32)
 
 import Network.CANOpen
-import Network.CANOpen.API
 import Network.CANOpen.LSS
-import Network.CANOpen.Types
 import Network.SocketCAN
 
 nID :: NodeID

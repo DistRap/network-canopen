@@ -1,4 +1,9 @@
-module Network.CANOpen where
+module Network.CANOpen
+  ( module Network.CANOpen.API
+  , module Network.CANOpen.Types
+  , withCANOpen
+  )
+  where
 
 import Control.Concurrent.Class.MonadSTM.TVar
 
@@ -13,26 +18,10 @@ import Data.Map (Map)
 import Network.CAN (CANArbitrationField, CANMessage(..), CAN(..))
 import Network.CANOpen.API
 import Network.CANOpen.SDOClient
-import Network.CANOpen.Types (NodeID)
+import Network.CANOpen.Types
 
 import qualified Data.Map
 import qualified Network.CANOpen.NMT.Types
-
-data CANOpenState m = CANOpenState
-  { canOpenStateNodes :: TVar m (Map NodeID (CNode m))
-  , canOpenStateHandlers :: TVar m (Map CANArbitrationField (CANMessage -> m ()))
-  }
-
-newCANOpenState
-  :: MonadSTM m => m (CANOpenState m)
-newCANOpenState = do
-  nodes <- newTVarIO mempty
-  handlers <- newTVarIO mempty
-  pure
-    CANOpenState
-    { canOpenStateNodes = nodes
-    , canOpenStateHandlers = handlers
-    }
 
 -- | Run CANOpen application
 withCANOpen

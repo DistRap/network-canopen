@@ -19,6 +19,12 @@ extra-source-files:
 extra-doc-files:
     CHANGELOG.md
 
+flag build-readme
+  default:
+    False
+  description:
+    Build readme example
+
 common commons
   ghc-options:         -Wall -Wunused-packages
   default-extensions:  BinaryLiterals
@@ -39,6 +45,12 @@ common commons
                        StandaloneDeriving
                        TypeApplications
                        TypeFamilies
+  default-language:    Haskell2010
+
+common execs
+  ghc-options:         -threaded
+                       -rtsopts
+                       "-with-rtsopts -N"
 
 library
   import:              commons
@@ -73,6 +85,7 @@ library
   default-language:    Haskell2010
 
 executable hcanopen-test
+  import:              commons, execs
   build-depends:       base >=4.7 && <5
                      , network-canopen
 
@@ -99,6 +112,19 @@ test-suite pure
                      , network-can
                      , network-canopen
   default-language:    Haskell2010
+
+executable readme
+  import:              commons, execs
+  if !flag(build-readme)
+    buildable: False
+  build-depends:
+      base >=4.7 && <5
+    , network-can:socketcan
+    , network-canopen
+  build-tool-depends:
+      markdown-unlit:markdown-unlit
+  main-is: README.lhs
+  ghc-options: -pgmL markdown-unlit -Wall
 
 source-repository head
   type:     git
