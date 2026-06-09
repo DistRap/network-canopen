@@ -27,5 +27,5 @@ withSubBus parentBus tmVar act =
   act
     $ CAN
         { canSend = canSend parentBus
-        , canRecv = atomically $ readTMVar tmVar
+        , canRecv = atomically $ takeTMVar tmVar
         }
