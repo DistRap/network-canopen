@@ -21,6 +21,7 @@ import Network.CANOpen.SDOClient
 import Network.CANOpen.Types
 
 import qualified Data.Map
+import qualified Network.CANOpen.SDO
 import qualified Network.CANOpen.NMT.Types
 
 -- | Run CANOpen application
@@ -58,6 +59,7 @@ withCANOpen can app = do
         )
   let
     addNode nId = do
+      removeNode nId
       sdoClient <- newSDOClient can canOpen nId
 
       let
@@ -77,15 +79,42 @@ withCANOpen can app = do
 
       pure newNode
 
+    removeNode nId = do
+      mNode <- atomically $ do
+        nodes <- readTVar nodesVar
+        case Data.Map.lookup nId nodes of
+          Just n -> do
+            modifyTVar nodesVar $ Data.Map.delete nId
+            pure $ Just n
+          Nothing -> pure Nothing
+
+      case mNode of
+        Nothing -> pure ()
+        Just n -> do
+          cNodeStopSDOClient n
+
+          unregisterHandler
+            (Network.CANOpen.SDO.sdoReplyID nId)
+          unregisterHandler
+            (Network.CANOpen.NMT.Types.nodeHeartbeatID nId)
+
     registerHandler cID handler = do
       atomically
         $ modifyTVar
             handlersVar
-            (Data.Map.insert cID handler)
+            $ Data.Map.insert cID handler
+
+    unregisterHandler cID = do
+      atomically
+        $ modifyTVar
+            handlersVar
+            $ Data.Map.delete cID
 
     canOpen = CANOpen
         { canOpenAddNode = addNode
+        , canOpenRemoveNode = removeNode
         , canOpenRegisterHandler = registerHandler
+        , canOpenUnregisterHandler = unregisterHandler
         }
 
   app canOpen

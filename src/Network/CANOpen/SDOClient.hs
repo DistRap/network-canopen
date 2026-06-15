@@ -95,7 +95,8 @@ sdoWriteNode nodeId sdoClient var val = do
     $ sdoClient
 
 mkCNode
-  :: ( MonadSTM m
+  :: ( MonadAsync m
+     , MonadSTM m
      , MonadThrow m
      )
   => NodeID
@@ -106,6 +107,7 @@ mkCNode nodeId sdoClient =
     { cNodeId = nodeId
     , cNodeSDORead = sdoReadNode nodeId sdoClient
     , cNodeSDOWrite = sdoWriteNode nodeId sdoClient
+    , cNodeStopSDOClient = cancel $ sdoClientAsync sdoClient
     }
 
 -- | Create and register a SDO client

@@ -19,9 +19,15 @@ data CANOpen m = CANOpen
   { canOpenAddNode
       :: NodeID
       -> m (CNode m)
+  , canOpenRemoveNode
+      :: NodeID
+      -> m ()
   , canOpenRegisterHandler
       :: CANArbitrationField
       -> (CANMessage -> m ())
+      -> m ()
+  , canOpenUnregisterHandler
+      :: CANArbitrationField
       -> m ()
   }
 
@@ -39,6 +45,8 @@ data CNode m = CNode
       => Variable a
       -> a
       -> m ()
+  , cNodeStopSDOClient
+      :: m ()
   }
 
 instance Eq (CNode m) where
