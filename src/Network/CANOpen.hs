@@ -7,11 +7,11 @@ module Network.CANOpen
 
 import Control.Concurrent.Class.MonadSTM.TVar
 
-import Control.Monad (forever, forM_, void, when)
+import Control.Monad (forever, forM_, when)
 import Control.Monad.Class.MonadAsync
 import Control.Monad.Class.MonadFork (MonadFork)
 import Control.Monad.Class.MonadTimer (MonadTimer)
-import Control.Monad.Class.MonadThrow (MonadCatch, MonadMask)
+import Control.Monad.Class.MonadThrow (MonadCatch, MonadMask, finally)
 import Control.Monad.Class.MonadSay (MonadSay (say))
 import Control.Monad.Class.MonadSTM (MonadSTM(atomically))
 import Data.Map (Map)
@@ -45,18 +45,6 @@ withCANOpen can app = do
     :: TVar m (Map NodeID (CNode m))
     <- newTVarIO mempty
 
-  -- incoming message router
-  void $ async $ do
-    forever $ do
-      msg <- canRecv can
-      handlers <- readTVarIO handlersVar
-      forM_
-        (Data.Map.toList handlers)
-        (\(arb, handler) ->
-          when
-            (arb == canMessageArbitrationField msg)
-            $ handler msg
-        )
   let
     addNode nId = do
       removeNode nId
@@ -117,4 +105,25 @@ withCANOpen can app = do
         , canOpenUnregisterHandler = unregisterHandler
         }
 
-  app canOpen
+  -- incoming message router
+  withAsync
+    (forever
+      $ do
+        msg <- canRecv can
+        handlers <- readTVarIO handlersVar
+        forM_
+          (Data.Map.toList handlers)
+          (\(arb, handler) ->
+            when
+              (arb == canMessageArbitrationField msg)
+              $ handler msg
+          )
+    )
+    $ \routerAsync -> do
+        link routerAsync
+        app canOpen
+          `finally`
+          (do
+             nodes <- atomically $ readTVar nodesVar
+             forM_ (Data.Map.keys nodes) removeNode
+          )
